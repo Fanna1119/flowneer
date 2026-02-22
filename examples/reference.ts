@@ -2,7 +2,7 @@
 // Usage examples — imports from the local Flowneer implementation (no deps)
 // ---------------------------------------------------------------------------
 
-import { FlowBuilder, FlowError } from "./Flowneer";
+import { FlowBuilder, FlowError } from "../Flowneer";
 
 // ── Example 1: Simple sequential flow ──────────────────────────────────────
 
