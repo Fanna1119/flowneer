@@ -310,6 +310,61 @@ const reactAgent = new FlowBuilder<AgentState>()
 
 See [examples/assistantFlow.ts](examples/assistantFlow.ts) for a full interactive agent.
 
+### Agent-to-agent delegation
+
+There is no special primitive for sub-agents — just call `anotherFlow.run(shared)` inside a `then`. Since `shared` is passed by reference, the sub-agent reads and writes the same state seamlessly:
+
+```typescript
+const researchAgent = new FlowBuilder<ReportState>()
+  .startWith(searchWeb)
+  .then(summariseSources);
+
+const writeAgent = new FlowBuilder<ReportState>()
+  .startWith(draftReport)
+  .then(formatMarkdown);
+
+const orchestrator = new FlowBuilder<ReportState>()
+  .startWith(async (s) => {
+    s.query = "LLM benchmarks 2025";
+  })
+  .then(async (s) => researchAgent.run(s)) // delegate → sub-agent mutates s
+  .then(async (s) => writeAgent.run(s)) // delegate → sub-agent mutates s
+  .then(async (s) => console.log(s.report));
+```
+
+Any number of flows can be composed this way. Each sub-agent is itself a `FlowBuilder`, so it can have its own retries, branches, and plugins.
+
+### Parallel sub-agents
+
+Use `parallel` when sub-agents are independent and can run concurrently:
+
+```typescript
+const sentimentAgent = new FlowBuilder<AnalysisState>()
+  .startWith(classifySentiment)
+  .then(scoreSentiment);
+
+const summaryAgent = new FlowBuilder<AnalysisState>()
+  .startWith(extractKeyPoints)
+  .then(writeSummary);
+
+const toxicityAgent = new FlowBuilder<AnalysisState>().startWith(checkToxicity);
+
+const orchestrator = new FlowBuilder<AnalysisState>()
+  .startWith(async (s) => {
+    s.text = "...input text...";
+  })
+  .parallel([
+    (s) => sentimentAgent.run(s), // writes s.sentiment
+    (s) => summaryAgent.run(s), // writes s.summary
+    (s) => toxicityAgent.run(s), // writes s.toxicity
+  ])
+  .then(async (s) => {
+    console.log(s.sentiment, s.summary, s.toxicity);
+  });
+```
+
+All three sub-agents share the same `shared` object and run concurrently. Avoid writing to the same key from parallel sub-agents — writes are not synchronised.
+
 ## Project structure
 
 ```
