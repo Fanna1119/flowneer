@@ -557,3 +557,178 @@ describe("agent-to-agent delegation", () => {
     expect(s.b).toBe("from-B");
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Multiple plugins (no overwrite)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("multiple plugins", () => {
+  test("two plugins both receive hook calls", async () => {
+    const callsA: string[] = [];
+    const callsB: string[] = [];
+
+    const pluginA: FlowneerPlugin = {
+      withHookA(this: FlowBuilder) {
+        (this as any)._setHooks({
+          afterStep: () => {
+            callsA.push("A");
+          },
+        });
+        return this;
+      },
+    };
+    const pluginB: FlowneerPlugin = {
+      withHookB(this: FlowBuilder) {
+        (this as any)._setHooks({
+          afterStep: () => {
+            callsB.push("B");
+          },
+        });
+        return this;
+      },
+    };
+    FlowBuilder.use(pluginA);
+    FlowBuilder.use(pluginB);
+
+    await (new FlowBuilder() as any)
+      .withHookA()
+      .withHookB()
+      .startWith(async () => {})
+      .run({});
+
+    expect(callsA).toEqual(["A"]);
+    expect(callsB).toEqual(["B"]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Timeout
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("timeoutMs", () => {
+  test("throws when step exceeds timeoutMs", async () => {
+    await expect(
+      new FlowBuilder()
+        .startWith(
+          async () => {
+            await new Promise((r) => setTimeout(r, 200));
+          },
+          { timeoutMs: 20 },
+        )
+        .run({}),
+    ).rejects.toThrow("timed out");
+  });
+
+  test("does not throw when step completes within timeoutMs", async () => {
+    await expect(
+      new FlowBuilder()
+        .startWith(
+          async () => {
+            await new Promise((r) => setTimeout(r, 5));
+          },
+          { timeoutMs: 200 },
+        )
+        .run({}),
+    ).resolves.toBeUndefined();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AbortSignal cancellation
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("AbortSignal", () => {
+  test("aborts between steps when signal is already aborted", async () => {
+    const order: number[] = [];
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      new FlowBuilder()
+        .startWith(async () => {
+          order.push(1);
+        })
+        .then(async () => {
+          order.push(2);
+        })
+        .run({}, undefined, { signal: controller.signal }),
+    ).rejects.toThrow();
+
+    expect(order).toEqual([]); // aborted before first step
+  });
+
+  test("aborts mid-flow when signal fires between steps", async () => {
+    const order: number[] = [];
+    const controller = new AbortController();
+
+    const flow = new FlowBuilder()
+      .startWith(async () => {
+        order.push(1);
+        controller.abort(); // abort after first step completes
+      })
+      .then(async () => {
+        order.push(2);
+      });
+
+    await expect(
+      flow.run({}, undefined, { signal: controller.signal }),
+    ).rejects.toThrow();
+    expect(order).toEqual([1]); // second step never ran
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// afterFlow hook
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("afterFlow hook", () => {
+  test("fires after successful run", async () => {
+    const events: string[] = [];
+    const plugin: FlowneerPlugin = {
+      withAfterFlow(this: FlowBuilder) {
+        (this as any)._setHooks({
+          afterFlow: () => {
+            events.push("afterFlow");
+          },
+        });
+        return this;
+      },
+    };
+    FlowBuilder.use(plugin);
+
+    await (new FlowBuilder() as any)
+      .withAfterFlow()
+      .startWith(async () => {
+        events.push("step");
+      })
+      .run({});
+
+    expect(events).toEqual(["step", "afterFlow"]);
+  });
+
+  test("fires even when the flow throws", async () => {
+    const events: string[] = [];
+    const plugin: FlowneerPlugin = {
+      withAfterFlowErr(this: FlowBuilder) {
+        (this as any)._setHooks({
+          afterFlow: () => {
+            events.push("afterFlow");
+          },
+        });
+        return this;
+      },
+    };
+    FlowBuilder.use(plugin);
+
+    try {
+      await (new FlowBuilder() as any)
+        .withAfterFlowErr()
+        .startWith(async () => {
+          throw new Error("boom");
+        })
+        .run({});
+    } catch {}
+
+    expect(events).toEqual(["afterFlow"]);
+  });
+});

@@ -155,18 +155,31 @@ await new FlowBuilder<FetchState>()
 // → Fetched 100 posts and 10 users
 ```
 
-### `run(shared, params?)`
+### `run(shared, params?, options?)`
 
 Execute the flow. Optionally pass a `params` object that every step receives as a second argument.
+
+```typescript
+// Basic
+await flow.run(shared);
+
+// With params
+await flow.run(shared, { userId: "123" });
+
+// With AbortSignal — cancels between steps when the signal fires
+const controller = new AbortController();
+await flow.run(shared, undefined, { signal: controller.signal });
+```
 
 ### Options
 
 Any step that accepts `options` supports:
 
-| Option     | Default | Description                        |
-| ---------- | ------- | ---------------------------------- |
-| `retries`  | `1`     | Number of attempts before throwing |
-| `delaySec` | `0`     | Seconds to wait between retries    |
+| Option      | Default | Description                                            |
+| ----------- | ------- | ------------------------------------------------------ |
+| `retries`   | `1`     | Number of attempts before throwing                     |
+| `delaySec`  | `0`     | Seconds to wait between retries                        |
+| `timeoutMs` | `0`     | Milliseconds before the step is aborted (0 = no limit) |
 
 ## Error handling
 
@@ -246,11 +259,12 @@ const flow = new FlowBuilder<MyState>()
 
 Plugins register hooks via `_setHooks()`. Three hook points are available:
 
-| Hook         | Called                                  | Arguments                       |
-| ------------ | --------------------------------------- | ------------------------------- |
-| `beforeStep` | Before each step executes               | `(meta, shared, params)`        |
-| `afterStep`  | After each step completes               | `(meta, shared, params)`        |
-| `onError`    | When a step throws (before re-throwing) | `(meta, error, shared, params)` |
+| Hook         | Called                                       | Arguments                       |
+| ------------ | -------------------------------------------- | ------------------------------- |
+| `beforeStep` | Before each step executes                    | `(meta, shared, params)`        |
+| `afterStep`  | After each step completes                    | `(meta, shared, params)`        |
+| `onError`    | When a step throws (before re-throwing)      | `(meta, error, shared, params)` |
+| `afterFlow`  | After the flow finishes (success or failure) | `(shared, params)`              |
 
 ### What plugins are for
 
@@ -259,6 +273,7 @@ Plugins register hooks via `_setHooks()`. Three hook points are available:
 | Observability / tracing     | `observePlugin` | `beforeStep` + `afterStep` + `onError` |
 | Persistence / checkpointing | `persistPlugin` | `afterStep`                            |
 | Timing / metrics            | custom          | `beforeStep` + `afterStep`             |
+| Cleanup / teardown          | custom          | `afterFlow`                            |
 
 See [examples/observePlugin.ts](examples/observePlugin.ts) and [examples/persistPlugin.ts](examples/persistPlugin.ts) for complete implementations.
 
@@ -368,7 +383,7 @@ All three sub-agents share the same `shared` object and run concurrently. Avoid 
 ## Project structure
 
 ```
-Flowneer.ts       Core — FlowBuilder, FlowError, types (~330 lines)
+Flowneer.ts       Core — FlowBuilder, FlowError, types (~380 lines)
 index.ts          Public exports
 examples/
   assistantFlow.ts   Interactive LLM assistant with branching
