@@ -1,16 +1,37 @@
 import { describe, expect, test } from "bun:test";
 import { FlowBuilder, FlowError } from "../Flowneer";
-import { observabilityPlugin } from "../plugins/observability";
-import { resiliencePlugin } from "../plugins/resilience";
-import { persistencePlugin } from "../plugins/persistence";
-import { llmPlugin } from "../plugins/llm";
-import { devPlugin } from "../plugins/dev";
+import { withTiming, withHistory, withVerbose } from "../plugins/observability";
+import {
+  withFallback,
+  withCircuitBreaker,
+  withTimeout,
+} from "../plugins/resilience";
+import {
+  withCheckpoint,
+  withAuditLog,
+  withReplay,
+} from "../plugins/persistence";
+import {
+  withTokenBudget,
+  withCostTracker,
+  withRateLimit,
+} from "../plugins/llm";
+import { withDryRun, withMocks } from "../plugins/dev";
 
-FlowBuilder.use(observabilityPlugin);
-FlowBuilder.use(resiliencePlugin);
-FlowBuilder.use(persistencePlugin);
-FlowBuilder.use(llmPlugin);
-FlowBuilder.use(devPlugin);
+FlowBuilder.use(withTiming);
+FlowBuilder.use(withHistory);
+FlowBuilder.use(withVerbose);
+FlowBuilder.use(withFallback);
+FlowBuilder.use(withCircuitBreaker);
+FlowBuilder.use(withTimeout);
+FlowBuilder.use(withCheckpoint);
+FlowBuilder.use(withAuditLog);
+FlowBuilder.use(withReplay);
+FlowBuilder.use(withTokenBudget);
+FlowBuilder.use(withCostTracker);
+FlowBuilder.use(withRateLimit);
+FlowBuilder.use(withDryRun);
+FlowBuilder.use(withMocks);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // beforeFlow hook

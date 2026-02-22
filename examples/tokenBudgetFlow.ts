@@ -14,10 +14,11 @@
 //   Output — $4.40 / 1M tokens  ($0.0000044 / token)
 
 import { FlowBuilder } from "../Flowneer";
-import { llmPlugin } from "../plugins/llm";
+import { withTokenBudget, withCostTracker } from "../plugins/llm";
 import { callLlmWithUsage } from "../utils/callLlm";
 
-FlowBuilder.use(llmPlugin);
+FlowBuilder.use(withTokenBudget);
+FlowBuilder.use(withCostTracker);
 
 // ── Pricing constants ────────────────────────────────────────────────────────
 

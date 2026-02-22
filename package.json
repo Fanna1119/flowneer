@@ -1,16 +1,43 @@
 {
   "name": "flowneer",
-  "module": "index.ts",
+  "version": "0.1.0",
+  "description": "Zero-dependency fluent flow builder for AI agents",
+  "license": "MIT",
   "type": "module",
-  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./plugins": "./dist/plugins/index.js",
+    "./plugins/observability": "./dist/plugins/observability/index.js",
+    "./plugins/resilience": "./dist/plugins/resilience/index.js",
+    "./plugins/persistence": "./dist/plugins/persistence/index.js",
+    "./plugins/llm": "./dist/plugins/llm/index.js",
+    "./plugins/dev": "./dist/plugins/dev/index.js"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "flow",
+    "agent",
+    "llm",
+    "pipeline",
+    "fluent",
+    "builder"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "prepublishOnly": "bun test && bun run build"
+  },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "dotenv": "17.3.1",
+    "openai": "6.22.0",
+    "tsup": "^8.5.1"
   },
   "peerDependencies": {
     "typescript": "^5"
-  },
-  "dependencies": {
-    "dotenv": "17.3.1",
-    "openai": "6.22.0"
   }
 }
