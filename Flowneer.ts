@@ -64,6 +64,42 @@ type Step<S, P extends Record<string, unknown>> =
   | BatchStep<S, P>
   | ParallelStep<S, P>;
 
+// ───────────────────────────────────────────────────────────────────────────
+// Plugin system
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Metadata exposed to hooks — intentionally minimal to avoid coupling. */
+export interface StepMeta {
+  index: number;
+  type: Step<any, any>["type"];
+}
+
+/** Lifecycle hooks that plugins can register. */
+export interface FlowHooks<
+  S = any,
+  P extends Record<string, unknown> = Record<string, unknown>,
+> {
+  beforeStep?: (meta: StepMeta, shared: S, params: P) => void | Promise<void>;
+  afterStep?: (meta: StepMeta, shared: S, params: P) => void | Promise<void>;
+  onError?: (meta: StepMeta, error: unknown, shared: S, params: P) => void;
+}
+
+/**
+ * A plugin is an object whose keys become methods on `FlowBuilder.prototype`.
+ * Each method receives the builder as `this` and should return `this` for chaining.
+ *
+ * Use declaration merging to get type-safe access:
+ * ```ts
+ * declare module "flowneer" {
+ *   interface FlowBuilder<S, P> { withTracing(fn: TraceCallback): this; }
+ * }
+ * ```
+ */
+export type FlowneerPlugin = Record<
+  string,
+  (this: FlowBuilder<any, any>, ...args: any[]) => any
+>;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // FlowError
 // ═══════════════════════════════════════════════════════════════════════════
@@ -99,6 +135,23 @@ export class FlowBuilder<
   P extends Record<string, unknown> = Record<string, unknown>,
 > {
   private steps: Step<S, P>[] = [];
+  private _hooks: FlowHooks<S, P> = {};
+
+  // -----------------------------------------------------------------------
+  // Plugin registration
+  // -----------------------------------------------------------------------
+
+  /** Register a plugin — copies its methods onto `FlowBuilder.prototype`. */
+  static use(plugin: FlowneerPlugin): void {
+    for (const [name, fn] of Object.entries(plugin)) {
+      (FlowBuilder.prototype as any)[name] = fn;
+    }
+  }
+
+  /** Set lifecycle hooks (called by plugin methods, not by consumers). */
+  protected _setHooks(hooks: Partial<FlowHooks<S, P>>): void {
+    Object.assign(this._hooks, hooks);
+  }
 
   // -----------------------------------------------------------------------
   // Public API
@@ -179,7 +232,10 @@ export class FlowBuilder<
   protected async _execute(shared: S, params: P): Promise<void> {
     for (let i = 0; i < this.steps.length; i++) {
       const step = this.steps[i]!;
+      const meta: StepMeta = { index: i, type: step.type };
       try {
+        if (this._hooks.beforeStep)
+          await this._hooks.beforeStep(meta, shared, params);
         switch (step.type) {
           case "fn":
             await this._retry(step.retries, step.delaySec, () =>
@@ -238,7 +294,10 @@ export class FlowBuilder<
             );
             break;
         }
+        if (this._hooks.afterStep)
+          await this._hooks.afterStep(meta, shared, params);
       } catch (err) {
+        if (this._hooks.onError) this._hooks.onError(meta, err, shared, params);
         if (err instanceof FlowError) throw err;
         const label =
           step.type === "fn" ? `step ${i}` : `${step.type} (step ${i})`;
