@@ -41,3 +41,34 @@ export async function callLlm(
   });
   return r.choices[0]?.message?.content || "";
 }
+
+// ── Token-aware variant ─────────────────────────────────────────────────────
+
+export interface LlmUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+}
+
+export interface CallLlmResult {
+  text: string;
+  usage: LlmUsage;
+}
+
+/**
+ * Like `callLlm` but also returns the token counts reported by the API.
+ * Only works with the Chat Completions path (no webSearch).
+ */
+export async function callLlmWithUsage(prompt: string): Promise<CallLlmResult> {
+  const client = getClient();
+  const r = await client.chat.completions.create({
+    model: "o4-mini",
+    messages: [{ role: "user", content: prompt }],
+  });
+  const usage: LlmUsage = {
+    inputTokens: r.usage?.prompt_tokens ?? 0,
+    outputTokens: r.usage?.completion_tokens ?? 0,
+    totalTokens: r.usage?.total_tokens ?? 0,
+  };
+  return { text: r.choices[0]?.message?.content ?? "", usage };
+}
