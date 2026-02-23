@@ -2,14 +2,13 @@
 
 <p>
   <a href="https://www.npmjs.com/package/flowneer"><img src="https://badges.ws/npm/v/flowneer" /></a>
-  <a href="https://deno.bundlejs.com/?q=flowneer@latest"><img src="https://deno.bundlejs.com/badge?q=flowneer@latest" /></a>
+  <a href="https://deno.bundlejs.com/badge?q=flowneer@0.1.0"><img src="https://deno.bundlejs.com/badge?q=flowneer@0.1.0" /></a>
   <a href="https://www.npmjs.com/package/flowneer"><img src="https://badges.ws/npm/l/flowneer" /></a>
   <a href="https://www.npmjs.com/package/flowneer"><img src="https://badges.ws/npm/dt/flowneer" /></a>
+  <a href="https://deepwiki.com/Fanna1119/flowneer"><img src="https://deepwiki.com/badge.svg" /></a>
 </p>
 
 A tiny, zero-dependency fluent flow builder for TypeScript. Chain steps, branch on conditions, loop, batch-process, and run tasks in parallel — all through a single `FlowBuilder` class. Extend it with plugins.
-
-DeepWiki [Docs](https://deepwiki.com/Fanna1119/flowneer)
 
 ## Install
 
