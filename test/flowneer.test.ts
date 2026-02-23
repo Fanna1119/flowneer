@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { FlowBuilder, FlowError } from "../Flowneer";
+import { FlowBuilder, FlowError, InterruptError } from "../Flowneer";
 import type { FlowneerPlugin, StepMeta } from "../Flowneer";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -730,5 +730,185 @@ describe("afterFlow hook", () => {
     } catch {}
 
     expect(events).toEqual(["afterFlow"]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// label() + goto (→labelName)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("label + goto", () => {
+  test("label steps are skipped (no-op markers)", async () => {
+    const shared = { order: [] as string[] };
+    await new FlowBuilder()
+      .startWith(async (s: any) => {
+        s.order.push("a");
+      })
+      .label("mid")
+      .then(async (s: any) => {
+        s.order.push("b");
+      })
+      .run(shared);
+    expect(shared.order).toEqual(["a", "b"]);
+  });
+
+  test("returning →label jumps to that label", async () => {
+    const shared = { count: 0, log: [] as string[] };
+    await new FlowBuilder()
+      .startWith(async (s: any) => {
+        s.log.push("start");
+      })
+      .label("refine")
+      .then(async (s: any) => {
+        s.count++;
+        s.log.push(`refine-${s.count}`);
+        if (s.count < 3) return "→refine";
+      })
+      .then(async (s: any) => {
+        s.log.push("done");
+      })
+      .run(shared);
+    expect(shared.count).toBe(3);
+    expect(shared.log).toEqual([
+      "start",
+      "refine-1",
+      "refine-2",
+      "refine-3",
+      "done",
+    ]);
+  });
+
+  test("goto to unknown label throws", async () => {
+    const flow = new FlowBuilder().startWith(async () => "→nowhere");
+    await expect(flow.run({})).rejects.toThrow(
+      'goto target label "nowhere" not found',
+    );
+  });
+
+  test("branch can return →label to jump", async () => {
+    const shared = { count: 0 };
+    await new FlowBuilder()
+      .label("top")
+      .then(async (s: any) => {
+        s.count++;
+      })
+      .branch(async (s: any) => (s.count < 2 ? "loop" : "exit"), {
+        loop: async () => "→top",
+        exit: async () => {},
+      })
+      .run(shared);
+    expect(shared.count).toBe(2);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// parallel() with reducer
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("parallel with reducer", () => {
+  test("each fn gets its own draft, reducer merges", async () => {
+    const shared = { value: 0 };
+    await new FlowBuilder()
+      .parallel(
+        [
+          async (s: any) => {
+            s.value += 10;
+          },
+          async (s: any) => {
+            s.value += 20;
+          },
+        ],
+        undefined,
+        (original: any, drafts: any[]) => {
+          original.value = drafts.reduce(
+            (sum: number, d: any) => sum + d.value,
+            0,
+          );
+        },
+      )
+      .run(shared);
+    // Each draft starts at 0, so 0+10 and 0+20 → sum = 30
+    expect(shared.value).toBe(30);
+  });
+
+  test("without reducer, fns mutate shared directly (backwards compat)", async () => {
+    const shared = { values: [] as number[] };
+    await new FlowBuilder()
+      .parallel([
+        async (s: any) => {
+          s.values.push(1);
+        },
+        async (s: any) => {
+          s.values.push(2);
+        },
+      ])
+      .run(shared);
+    expect(shared.values.sort()).toEqual([1, 2]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// wrapParallelFn hook
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("wrapParallelFn hook", () => {
+  test("fires for each fn in a parallel step", async () => {
+    const indices: number[] = [];
+    const plugin: FlowneerPlugin = {
+      withPFnWrap(this: FlowBuilder) {
+        (this as any)._setHooks({
+          wrapParallelFn: async (
+            _meta: any,
+            fnIndex: number,
+            next: () => Promise<void>,
+          ) => {
+            indices.push(fnIndex);
+            await next();
+          },
+        });
+        return this;
+      },
+    };
+    FlowBuilder.use(plugin);
+
+    const shared = { values: [] as number[] };
+    await (new FlowBuilder() as any)
+      .withPFnWrap()
+      .parallel([
+        async (s: any) => s.values.push(1),
+        async (s: any) => s.values.push(2),
+        async (s: any) => s.values.push(3),
+      ])
+      .run(shared);
+
+    expect(indices.sort()).toEqual([0, 1, 2]);
+    expect(shared.values.sort()).toEqual([1, 2, 3]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// InterruptError
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("InterruptError", () => {
+  test("is exported and carries savedShared", () => {
+    const err = new InterruptError({ foo: "bar" });
+    expect(err.name).toBe("InterruptError");
+    expect(err.message).toBe("Flow interrupted");
+    expect(err.savedShared).toEqual({ foo: "bar" });
+    expect(err instanceof Error).toBe(true);
+  });
+
+  test("is not wrapped by FlowError when thrown from a step", async () => {
+    const flow = new FlowBuilder().startWith(async () => {
+      throw new InterruptError({ state: 42 });
+    });
+    try {
+      await flow.run({});
+      throw new Error("should not reach");
+    } catch (err) {
+      expect(err instanceof InterruptError).toBe(true);
+      expect((err as InterruptError).savedShared).toEqual({ state: 42 });
+    }
   });
 });

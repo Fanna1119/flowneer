@@ -1,37 +1,61 @@
 import { describe, expect, test } from "bun:test";
 import { FlowBuilder, FlowError } from "../Flowneer";
-import { withTiming, withHistory, withVerbose } from "../plugins/observability";
+import {
+  withTiming,
+  withHistory,
+  withVerbose,
+  withInterrupts,
+} from "../plugins/observability";
 import {
   withFallback,
   withCircuitBreaker,
   withTimeout,
+  withCycles,
 } from "../plugins/resilience";
 import {
   withCheckpoint,
   withAuditLog,
   withReplay,
+  withVersionedCheckpoint,
 } from "../plugins/persistence";
 import {
   withTokenBudget,
   withCostTracker,
   withRateLimit,
 } from "../plugins/llm";
-import { withDryRun, withMocks } from "../plugins/dev";
+import {
+  withDryRun,
+  withMocks,
+  withStepLimit,
+  withAtomicUpdates,
+} from "../plugins/dev";
+import {
+  withChannels,
+  sendTo,
+  receiveFrom,
+  peekChannel,
+} from "../plugins/messaging";
 
 FlowBuilder.use(withTiming);
 FlowBuilder.use(withHistory);
 FlowBuilder.use(withVerbose);
+FlowBuilder.use(withInterrupts);
 FlowBuilder.use(withFallback);
 FlowBuilder.use(withCircuitBreaker);
 FlowBuilder.use(withTimeout);
+FlowBuilder.use(withCycles);
 FlowBuilder.use(withCheckpoint);
 FlowBuilder.use(withAuditLog);
 FlowBuilder.use(withReplay);
+FlowBuilder.use(withVersionedCheckpoint);
 FlowBuilder.use(withTokenBudget);
 FlowBuilder.use(withCostTracker);
 FlowBuilder.use(withRateLimit);
 FlowBuilder.use(withDryRun);
 FlowBuilder.use(withMocks);
+FlowBuilder.use(withStepLimit);
+FlowBuilder.use(withAtomicUpdates);
+FlowBuilder.use(withChannels);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // beforeFlow hook
@@ -610,5 +634,320 @@ describe("withMocks", () => {
       })
       .run({});
     expect(ran).toEqual([0, 1]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// withStepLimit
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("withStepLimit", () => {
+  test("allows flows under the limit", async () => {
+    const shared = { count: 0 };
+    await (new FlowBuilder() as any)
+      .withStepLimit(10)
+      .startWith(async (s: any) => {
+        s.count++;
+      })
+      .then(async (s: any) => {
+        s.count++;
+      })
+      .run(shared);
+    expect(shared.count).toBe(2);
+  });
+
+  test("throws when step count exceeds limit", async () => {
+    const flow = (new FlowBuilder() as any)
+      .withStepLimit(2)
+      .startWith(async () => {})
+      .then(async () => {})
+      .then(async () => {}); // 3rd step exceeds limit of 2
+    await expect(flow.run({})).rejects.toThrow("step limit exceeded");
+  });
+
+  test("counter resets between runs", async () => {
+    const flow = (new FlowBuilder() as any)
+      .withStepLimit(5)
+      .startWith(async () => {})
+      .then(async () => {});
+    await flow.run({});
+    await flow.run({}); // should not throw — counter reset
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// withAtomicUpdates (parallelAtomic)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("withAtomicUpdates", () => {
+  test("drafts are isolated, reducer merges", async () => {
+    const shared = { total: 0 };
+    await (new FlowBuilder() as any)
+      .parallelAtomic(
+        [
+          async (s: any) => {
+            s.total += 5;
+          },
+          async (s: any) => {
+            s.total += 7;
+          },
+        ],
+        (original: any, drafts: any[]) => {
+          original.total = drafts.reduce(
+            (sum: number, d: any) => sum + d.total,
+            0,
+          );
+        },
+      )
+      .run(shared);
+    // Each draft starts at total=0, so 5 + 7 = 12
+    expect(shared.total).toBe(12);
+  });
+
+  test("original shared is not mutated during parallel execution", async () => {
+    const shared = { val: "original" };
+    await (new FlowBuilder() as any)
+      .parallelAtomic(
+        [
+          async (s: any) => {
+            s.val = "draft-a";
+          },
+          async (s: any) => {
+            s.val = "draft-b";
+          },
+        ],
+        (original: any, drafts: any[]) => {
+          original.val = drafts.map((d: any) => d.val).join("+");
+        },
+      )
+      .run(shared);
+    expect(shared.val).toBe("draft-a+draft-b");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// withCycles
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("withCycles", () => {
+  test("allows flows within cycle limit", async () => {
+    const shared = { count: 0 };
+    await (new FlowBuilder() as any)
+      .withCycles(20)
+      .startWith(async (s: any) => {
+        s.count++;
+      })
+      .then(async (s: any) => {
+        s.count++;
+      })
+      .run(shared);
+    expect(shared.count).toBe(2);
+  });
+
+  test("throws when cycle limit exceeded", async () => {
+    const flow = (new FlowBuilder() as any).withCycles(3);
+    flow.label("loop").then(async (s: any) => {
+      s.n = (s.n ?? 0) + 1;
+      return "→loop"; // forever
+    });
+    await expect(flow.run({ n: 0 })).rejects.toThrow("cycle limit exceeded");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// withInterrupts (interruptIf)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("withInterrupts", () => {
+  test("does not interrupt when condition is false", async () => {
+    const shared = { step: 0 };
+    await (new FlowBuilder() as any)
+      .startWith(async (s: any) => {
+        s.step = 1;
+      })
+      .interruptIf(() => false)
+      .then(async (s: any) => {
+        s.step = 2;
+      })
+      .run(shared);
+    expect(shared.step).toBe(2);
+  });
+
+  test("throws InterruptError when condition is true", async () => {
+    const shared = { step: 0 };
+    const flow = (new FlowBuilder() as any)
+      .startWith(async (s: any) => {
+        s.step = 1;
+      })
+      .interruptIf(() => true)
+      .then(async (s: any) => {
+        s.step = 2;
+      });
+    try {
+      await flow.run(shared);
+      throw new Error("should not reach");
+    } catch (err: any) {
+      expect(err.name).toBe("InterruptError");
+      expect(err.savedShared.step).toBe(1);
+    }
+    // step 2 was never reached
+    expect(shared.step).toBe(1);
+  });
+
+  test("InterruptError carries a deep clone of shared", async () => {
+    const shared = { nested: { value: 1 } };
+    const flow = (new FlowBuilder() as any)
+      .startWith(async (s: any) => {
+        s.nested.value = 42;
+      })
+      .interruptIf(() => true);
+    try {
+      await flow.run(shared);
+    } catch (err: any) {
+      // Mutating saved should not affect original
+      err.savedShared.nested.value = 999;
+      expect(shared.nested.value).toBe(42);
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// withChannels (sendTo / receiveFrom)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("withChannels", () => {
+  test("sendTo and receiveFrom pass messages between steps", async () => {
+    const shared: any = {};
+    await (new FlowBuilder() as any)
+      .withChannels()
+      .startWith(async (s: any) => {
+        sendTo(s, "work", { task: "A" });
+        sendTo(s, "work", { task: "B" });
+      })
+      .then(async (s: any) => {
+        const msgs = receiveFrom(s, "work");
+        s.received = msgs;
+      })
+      .run(shared);
+    expect(shared.received).toEqual([{ task: "A" }, { task: "B" }]);
+  });
+
+  test("receiveFrom drains the queue", async () => {
+    const shared: any = {};
+    await (new FlowBuilder() as any)
+      .withChannels()
+      .startWith(async (s: any) => {
+        sendTo(s, "ch", 1);
+        sendTo(s, "ch", 2);
+      })
+      .then(async (s: any) => {
+        s.first = receiveFrom(s, "ch");
+        s.second = receiveFrom(s, "ch"); // should be empty
+      })
+      .run(shared);
+    expect(shared.first).toEqual([1, 2]);
+    expect(shared.second).toEqual([]);
+  });
+
+  test("receiveFrom on unknown channel returns empty array", async () => {
+    const shared: any = {};
+    await (new FlowBuilder() as any)
+      .withChannels()
+      .startWith(async (s: any) => {
+        s.result = receiveFrom(s, "nonexistent");
+      })
+      .run(shared);
+    expect(shared.result).toEqual([]);
+  });
+
+  test("peekChannel does not drain", async () => {
+    const shared: any = {};
+    await (new FlowBuilder() as any)
+      .withChannels()
+      .startWith(async (s: any) => {
+        sendTo(s, "ch", "msg");
+      })
+      .then(async (s: any) => {
+        s.peeked = peekChannel(s, "ch");
+        s.received = receiveFrom(s, "ch");
+      })
+      .run(shared);
+    expect(shared.peeked).toEqual(["msg"]);
+    expect(shared.received).toEqual(["msg"]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// withVersionedCheckpoint
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("withVersionedCheckpoint", () => {
+  test("saves diff-based entries after each step", async () => {
+    const entries: any[] = [];
+    const store: any = {
+      save: (entry: any) => entries.push(entry),
+      resolve: () => ({ stepIndex: 0, snapshot: {} }),
+    };
+    const shared = { a: 1 };
+    await (new FlowBuilder() as any)
+      .withVersionedCheckpoint(store)
+      .startWith(async (s: any) => {
+        s.a = 2;
+      })
+      .then(async (s: any) => {
+        s.b = "new";
+      })
+      .run(shared);
+
+    expect(entries.length).toBe(2);
+    // First entry: a changed from 1 to 2
+    expect(entries[0].diff.a).toBe(2);
+    expect(entries[0].parentVersion).toBeNull();
+    // Second entry: b added
+    expect(entries[1].diff.b).toBe("new");
+    expect(entries[1].parentVersion).toBe(entries[0].version);
+  });
+
+  test("skips save when nothing changed", async () => {
+    const entries: any[] = [];
+    const store: any = {
+      save: (entry: any) => entries.push(entry),
+      resolve: () => ({ stepIndex: 0, snapshot: {} }),
+    };
+    await (new FlowBuilder() as any)
+      .withVersionedCheckpoint(store)
+      .startWith(async () => {
+        /* no-op */
+      })
+      .run({ x: 1 });
+    expect(entries.length).toBe(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// resumeFrom
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("resumeFrom", () => {
+  test("skips steps at or before the saved stepIndex", async () => {
+    const ran: number[] = [];
+    const store: any = {
+      save: () => {},
+      resolve: () => ({ stepIndex: 1, snapshot: {} }),
+    };
+    await (new FlowBuilder() as any)
+      .resumeFrom("v1", store)
+      .startWith(async () => {
+        ran.push(0);
+      })
+      .then(async () => {
+        ran.push(1);
+      })
+      .then(async () => {
+        ran.push(2);
+      })
+      .run({});
+    // Steps 0 and 1 should be skipped (index <= 1)
+    expect(ran).toEqual([2]);
   });
 });

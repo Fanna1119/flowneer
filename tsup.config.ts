@@ -9,6 +9,7 @@ export default defineConfig({
     "plugins/persistence/index.ts",
     "plugins/llm/index.ts",
     "plugins/dev/index.ts",
+    "plugins/messaging/index.ts",
   ],
   format: ["esm"],
   dts: true,

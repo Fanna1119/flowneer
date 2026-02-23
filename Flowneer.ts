@@ -63,6 +63,12 @@ interface ParallelStep<S, P extends Record<string, unknown>> {
   retries: number;
   delaySec: number;
   timeoutMs: number;
+  reducer?: (shared: S, drafts: S[]) => void;
+}
+
+interface LabelStep {
+  type: "label";
+  name: string;
 }
 
 type Step<S, P extends Record<string, unknown>> =
@@ -70,7 +76,8 @@ type Step<S, P extends Record<string, unknown>> =
   | BranchStep<S, P>
   | LoopStep<S, P>
   | BatchStep<S, P>
-  | ParallelStep<S, P>;
+  | ParallelStep<S, P>
+  | LabelStep;
 
 // ───────────────────────────────────────────────────────────────────────────
 // Plugin system
@@ -80,6 +87,7 @@ type Step<S, P extends Record<string, unknown>> =
 export interface StepMeta {
   index: number;
   type: Step<any, any>["type"];
+  label?: string;
 }
 
 /** Lifecycle hooks that plugins can register. */
@@ -102,6 +110,17 @@ export interface FlowHooks<
     params: P,
   ) => Promise<void>;
   afterStep?: (meta: StepMeta, shared: S, params: P) => void | Promise<void>;
+  /**
+   * Wraps individual functions within a `.parallel()` step.
+   * `fnIndex` is the position within the fns array.
+   */
+  wrapParallelFn?: (
+    meta: StepMeta,
+    fnIndex: number,
+    next: () => Promise<void>,
+    shared: S,
+    params: P,
+  ) => Promise<void>;
   onError?: (meta: StepMeta, error: unknown, shared: S, params: P) => void;
   afterFlow?: (shared: S, params: P) => void | Promise<void>;
 }
@@ -138,6 +157,20 @@ export class FlowError extends Error {
     this.name = "FlowError";
     this.step = step;
     this.cause = cause;
+  }
+}
+
+/**
+ * Thrown by `interruptIf` to pause a flow.
+ * Catch this in your runner to save `savedShared` and resume later.
+ */
+export class InterruptError extends Error {
+  readonly savedShared: unknown;
+
+  constructor(shared: unknown) {
+    super("Flow interrupted");
+    this.name = "InterruptError";
+    this.savedShared = shared;
   }
 }
 
@@ -243,10 +276,34 @@ export class FlowBuilder<
   /**
    * Append a parallel step.
    * Runs all `fns` concurrently against the same shared state.
+   *
+   * When `reducer` is provided each fn receives its own shallow clone of
+   * `shared`; after all fns complete the reducer merges the drafts back
+   * into the original shared object — preventing concurrent mutation races.
    */
-  parallel(fns: NodeFn<S, P>[], options?: NodeOptions): this {
+  parallel(
+    fns: NodeFn<S, P>[],
+    options?: NodeOptions,
+    reducer?: (shared: S, drafts: S[]) => void,
+  ): this {
     const { retries = 1, delaySec = 0, timeoutMs = 0 } = options ?? {};
-    this.steps.push({ type: "parallel", fns, retries, delaySec, timeoutMs });
+    this.steps.push({
+      type: "parallel",
+      fns,
+      retries,
+      delaySec,
+      timeoutMs,
+      reducer,
+    });
+    return this;
+  }
+
+  /**
+   * Insert a named label. Labels are no-op markers that can be jumped to
+   * from any `NodeFn` by returning `"→labelName"`.
+   */
+  label(name: string): this {
+    this.steps.push({ type: "label", name });
     return this;
   }
 
@@ -270,21 +327,39 @@ export class FlowBuilder<
     params: P,
     signal?: AbortSignal,
   ): Promise<void> {
+    // Pre-scan labels for goto support
+    const labels = new Map<string, number>();
+    for (let j = 0; j < this.steps.length; j++) {
+      const s = this.steps[j]!;
+      if (s.type === "label") labels.set(s.name, j);
+    }
+
     for (let i = 0; i < this.steps.length; i++) {
       signal?.throwIfAborted();
       const step = this.steps[i]!;
+
+      // Labels are pure markers — skip execution
+      if (step.type === "label") continue;
+
       const meta: StepMeta = { index: i, type: step.type };
       try {
         for (const h of this._hooksList)
           await h.beforeStep?.(meta, shared, params);
 
+        let gotoTarget: string | undefined;
+
         const runBody = async () => {
           switch (step.type) {
-            case "fn":
-              await this._retry(step.retries, step.delaySec, () =>
-                step.fn(shared, params),
+            case "fn": {
+              const result = await this._retry(
+                step.retries,
+                step.delaySec,
+                () => step.fn(shared, params),
               );
+              if (typeof result === "string" && result.startsWith("→"))
+                gotoTarget = result.slice(1);
               break;
+            }
 
             case "branch": {
               const action = await this._retry(
@@ -294,10 +369,18 @@ export class FlowBuilder<
               );
               const key = action ? String(action) : "default";
               const fn = step.branches[key] ?? step.branches["default"];
-              if (fn)
-                await this._retry(step.retries, step.delaySec, () =>
-                  fn(shared, params),
+              if (fn) {
+                const branchResult = await this._retry(
+                  step.retries,
+                  step.delaySec,
+                  () => fn(shared, params),
                 );
+                if (
+                  typeof branchResult === "string" &&
+                  branchResult.startsWith("→")
+                )
+                  gotoTarget = branchResult.slice(1);
+              }
               break;
             }
 
@@ -322,15 +405,57 @@ export class FlowBuilder<
               break;
             }
 
-            case "parallel":
-              await Promise.all(
-                step.fns.map((fn) =>
-                  this._retry(step.retries, step.delaySec, () =>
-                    fn(shared, params),
-                  ),
-                ),
-              );
+            case "parallel": {
+              const pfnWrappers = this._hooksList
+                .map((h) => h.wrapParallelFn)
+                .filter((w): w is NonNullable<typeof w> => w != null);
+
+              if (step.reducer) {
+                // Safe mode: each fn gets its own shallow draft
+                const drafts: S[] = [];
+                await Promise.all(
+                  step.fns.map(async (fn, fi) => {
+                    const draft = { ...shared } as S;
+                    drafts[fi] = draft;
+                    const exec = () =>
+                      this._retry(step.retries, step.delaySec, () =>
+                        fn(draft, params),
+                      );
+                    const wrapped = pfnWrappers.reduceRight<
+                      () => Promise<void>
+                    >(
+                      (next, wrap) => () => wrap(meta, fi, next, draft, params),
+                      async () => {
+                        await exec();
+                      },
+                    );
+                    await wrapped();
+                  }),
+                );
+                step.reducer(shared, drafts);
+              } else {
+                // Original mode: direct shared mutation
+                await Promise.all(
+                  step.fns.map((fn, fi) => {
+                    const exec = () =>
+                      this._retry(step.retries, step.delaySec, () =>
+                        fn(shared, params),
+                      );
+                    const wrapped = pfnWrappers.reduceRight<
+                      () => Promise<void>
+                    >(
+                      (next, wrap) => () =>
+                        wrap(meta, fi, next, shared, params),
+                      async () => {
+                        await exec();
+                      },
+                    );
+                    return wrapped();
+                  }),
+                );
+              }
               break;
+            }
           }
         };
 
@@ -349,12 +474,21 @@ export class FlowBuilder<
 
         for (const h of this._hooksList)
           await h.afterStep?.(meta, shared, params);
+
+        // Handle goto: jump to a labelled step
+        if (gotoTarget) {
+          const target = labels.get(gotoTarget);
+          if (target === undefined)
+            throw new Error(`goto target label "${gotoTarget}" not found`);
+          i = target; // for-loop will i++ → first step after the label
+        }
       } catch (err) {
+        if (err instanceof InterruptError) throw err;
         for (const h of this._hooksList) h.onError?.(meta, err, shared, params);
         if (err instanceof FlowError) throw err;
-        const label =
+        const stepLabel =
           step.type === "fn" ? `step ${i}` : `${step.type} (step ${i})`;
-        throw new FlowError(label, err);
+        throw new FlowError(stepLabel, err);
       }
     }
   }
