@@ -2,7 +2,7 @@
 
 <p>
   <a href="https://www.npmjs.com/package/flowneer"><img src="https://badges.ws/npm/v/flowneer" /></a>
-  <a href="https://deno.bundlejs.com/badge?q=flowneer@0.1.0"><img src="https://deno.bundlejs.com/badge?q=flowneer@0.1.0" /></a>
+  <a href="https://deno.bundlejs.com/badge?q=flowneer"><img src="https://deno.bundlejs.com/badge?q=flowneer" /></a>
   <a href="https://www.npmjs.com/package/flowneer"><img src="https://badges.ws/npm/l/flowneer" /></a>
   <a href="https://www.npmjs.com/package/flowneer"><img src="https://badges.ws/npm/dt/flowneer" /></a>
   <a href="https://deepwiki.com/Fanna1119/flowneer"><img src="https://deepwiki.com/badge.svg" /></a>
