@@ -13,7 +13,8 @@
     "./plugins/resilience": "./dist/plugins/resilience/index.js",
     "./plugins/persistence": "./dist/plugins/persistence/index.js",
     "./plugins/llm": "./dist/plugins/llm/index.js",
-    "./plugins/dev": "./dist/plugins/dev/index.js"
+    "./plugins/dev": "./dist/plugins/dev/index.js",
+    "./plugins/messaging": "./dist/plugins/messaging/index.js"
   },
   "sideEffects": false,
   "files": [
