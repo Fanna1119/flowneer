@@ -224,6 +224,36 @@ The core is intentionally small. Use `FlowBuilder.use(plugin)` to add chain meth
 
 A plugin is an object of functions that get copied onto `FlowBuilder.prototype`. Each function receives the builder as `this` and should return `this` for chaining.
 
+### Available plugins
+
+| Category          | Plugin               | Method                           | Description                                                                                              |
+| ----------------- | -------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| **Observability** | `withHistory`        | `.withHistory()`                 | Appends a shallow state snapshot after each step to `shared.__history`                                   |
+|                   | `withTiming`         | `.withTiming()`                  | Records wall-clock duration (ms) of each step in `shared.__timings[index]`                               |
+|                   | `withVerbose`        | `.withVerbose()`                 | Prints the full `shared` object to stdout after each step                                                |
+| **Persistence**   | `withCheckpoint`     | `.withCheckpoint(store)`         | Saves `shared` to a store after each successful step                                                     |
+|                   | `withAuditLog`       | `.withAuditLog(store)`           | Writes an immutable deep-clone audit entry to a store after every step (success and error)               |
+|                   | `withReplay`         | `.withReplay(fromStep)`          | Skips all steps before `fromStep`; combine with `.withCheckpoint()` to resume a failed flow              |
+| **Resilience**    | `withCircuitBreaker` | `.withCircuitBreaker(opts?)`     | Opens the circuit after `maxFailures` consecutive failures and rejects all steps until `resetMs` elapses |
+|                   | `withFallback`       | `.withFallback(fn)`              | Catches any step error and calls `fn` instead of propagating, allowing the flow to continue              |
+|                   | `withTimeout`        | `.withTimeout(ms)`               | Aborts any step that exceeds `ms` milliseconds with a descriptive error                                  |
+| **LLM**           | `withCostTracker`    | `.withCostTracker()`             | Accumulates per-step `shared.__stepCost` values into `shared.__cost` after each step                     |
+|                   | `withRateLimit`      | `.withRateLimit({ intervalMs })` | Enforces a minimum gap of `intervalMs` ms between steps to avoid hammering rate-limited APIs             |
+|                   | `withTokenBudget`    | `.withTokenBudget(limit)`        | Aborts the flow before any step where `shared.tokensUsed >= limit`                                       |
+| **Dev**           | `withDryRun`         | `.withDryRun()`                  | Skips all step bodies while still firing hooks — useful for validating observability wiring              |
+|                   | `withMocks`          | `.withMocks(map)`                | Replaces step bodies at specified indices with mock functions; all other steps run normally              |
+
+Plugins are imported from `flowneer/plugins` (or their individual paths) and registered once with `FlowBuilder.use()`:
+
+```typescript
+import { withTiming, withCostTracker } from "flowneer/plugins";
+
+FlowBuilder.use(withTiming);
+FlowBuilder.use(withCostTracker);
+```
+
+---
+
 ### Writing a plugin
 
 ```typescript
