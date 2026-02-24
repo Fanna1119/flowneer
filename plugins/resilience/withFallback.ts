@@ -19,14 +19,20 @@ export const withFallback: FlowneerPlugin = {
   withFallback(this: FlowBuilder<any, any>, fn: NodeFn) {
     (this as any)._setHooks({
       wrapStep: async (
-        _meta: StepMeta,
+        meta: StepMeta,
         next: () => Promise<void>,
         shared: any,
         params: any,
       ) => {
         try {
           await next();
-        } catch {
+        } catch (e) {
+          shared.__fallbackError = {
+            stepIndex: meta.index,
+            stepType: meta.type,
+            message: e instanceof Error ? e.message : String(e),
+            stack: e instanceof Error ? e.stack : undefined,
+          };
           await fn(shared, params);
         }
       },

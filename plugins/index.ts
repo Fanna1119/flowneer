@@ -48,4 +48,7 @@ export {
   sendTo,
   receiveFrom,
   peekChannel,
+  withStream,
+  emit,
 } from "./messaging/index";
+export type { StreamSubscriber } from "./messaging/index";

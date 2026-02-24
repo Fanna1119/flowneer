@@ -13,17 +13,22 @@ declare module "../../Flowneer" {
 export const withTimeout: FlowneerPlugin = {
   withTimeout(this: FlowBuilder<any, any>, ms: number) {
     (this as any)._setHooks({
-      wrapStep: (meta: StepMeta, next: () => Promise<void>) =>
-        Promise.race([
-          next(),
-          new Promise<void>((_, reject) =>
-            setTimeout(
-              () =>
-                reject(new Error(`step ${meta.index} timed out after ${ms}ms`)),
-              ms,
-            ),
+      wrapStep: (meta: StepMeta, next: () => Promise<void>) => {
+        let handle: ReturnType<typeof setTimeout>;
+        return Promise.race([
+          next().finally(() => clearTimeout(handle)),
+          new Promise<void>(
+            (_, reject) =>
+              (handle = setTimeout(
+                () =>
+                  reject(
+                    new Error(`step ${meta.index} timed out after ${ms}ms`),
+                  ),
+                ms,
+              )),
           ),
-        ]),
+        ]);
+      },
     });
     return this;
   },
