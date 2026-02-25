@@ -259,6 +259,59 @@ await new FlowBuilder<RefineState>()
 
 > **Tip:** Pair with [`withCycles`](#withcycles) to cap the maximum number of jumps.
 
+## using with `withCycles` plugin
+
+`withCycles` guards against infinite anchor-jump loops. Each call registers one limit; multiple calls stack.
+
+**Global limit** — throws after `n` total anchor jumps across the whole flow:
+
+```typescript
+import { FlowBuilder } from "flowneer";
+import { withCycles } from "flowneer/plugins/resilience";
+
+FlowBuilder.use(withCycles);
+
+const flow = new FlowBuilder<State>()
+  .withCycles(5) // max 5 total anchor jumps
+  .startWith(async (s) => {
+    s.count = 0;
+  })
+  .anchor("loop")
+  .then(async (s) => {
+    s.count += 1;
+    if (s.count < 3) return "#loop"; // jump back to "loop" anchor
+  })
+  .then(async (s) => console.log("done, count =", s.count));
+```
+
+**Per-anchor limit** — pass an anchor name as the second argument to restrict visits to that specific anchor only:
+
+```typescript
+const flow = new FlowBuilder<State>()
+  .withCycles(5, "refine") // max 5 visits to the "refine" anchor
+  .startWith(generateDraft)
+  .anchor("refine")
+  .then(async (s) => {
+    s.quality = await score(s.draft);
+    if (s.quality < 0.8) {
+      s.draft = await improve(s.draft);
+      return "#refine";
+    }
+  });
+```
+
+**Mixed** — combine a global cap with independent per-anchor limits by chaining calls. Each limit is evaluated independently:
+
+```typescript
+const flow = new FlowBuilder<State>()
+  .withCycles(100)          // global: max 100 total anchor jumps
+  .withCycles(5, "fast")    // "fast" anchor: max 5 visits
+  .withCycles(10, "retry")  // "retry" anchor: max 10 visits
+  ...
+```
+
+Unlisted anchors are unaffected by per-anchor limits. The global limit (if set) still counts every jump regardless of which anchor was targeted.
+
 ### `run(shared, params?, options?)`
 
 Execute the flow. Optionally pass a `params` object that every step receives as a second argument.
@@ -340,29 +393,29 @@ A plugin is an object of functions that get copied onto `FlowBuilder.prototype`.
 
 ### Available plugins
 
-| Category          | Plugin                    | Method                                    | Description                                                                                              |
-| ----------------- | ------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| **Observability** | `withHistory`             | `.withHistory()`                          | Appends a shallow state snapshot after each step to `shared.__history`                                   |
-|                   | `withTiming`              | `.withTiming()`                           | Records wall-clock duration (ms) of each step in `shared.__timings[index]`                               |
-|                   | `withVerbose`             | `.withVerbose()`                          | Prints the full `shared` object to stdout after each step                                                |
-|                   | `withInterrupts`          | `.interruptIf(condition)`                 | Pauses the flow by throwing an `InterruptError` (with a deep-clone of `shared`) when condition is true   |
-| **Persistence**   | `withCheckpoint`          | `.withCheckpoint(store)`                  | Saves `shared` to a store after each successful step                                                     |
-|                   | `withAuditLog`            | `.withAuditLog(store)`                    | Writes an immutable deep-clone audit entry to a store after every step (success and error)               |
-|                   | `withReplay`              | `.withReplay(fromStep)`                   | Skips all steps before `fromStep`; combine with `.withCheckpoint()` to resume a failed flow              |
-|                   | `withVersionedCheckpoint` | `.withVersionedCheckpoint(store)`         | Saves diff-based versioned checkpoints with parent pointers after each step that changes state           |
-|                   |                           | `.resumeFrom(version, store)`             | Resolves a version id and skips all steps up to and including the saved step index                       |
-| **Resilience**    | `withCircuitBreaker`      | `.withCircuitBreaker(opts?)`              | Opens the circuit after `maxFailures` consecutive failures and rejects all steps until `resetMs` elapses |
-|                   | `withFallback`            | `.withFallback(fn)`                       | Catches any step error and calls `fn` instead of propagating, allowing the flow to continue              |
-|                   | `withTimeout`             | `.withTimeout(ms)`                        | Aborts any step that exceeds `ms` milliseconds with a descriptive error                                  |
-|                   | `withCycles`              | `.withCycles(maxJumps?)`                  | Throws if total step executions exceed `maxJumps` (default 100) — guards against infinite goto loops     |
-| **Messaging**     | `withChannels`            | `.withChannels()`                         | Initialises a `Map`-based message-channel system on `shared.__channels`                                  |
-| **LLM**           | `withCostTracker`         | `.withCostTracker()`                      | Accumulates per-step `shared.__stepCost` values into `shared.__cost` after each step                     |
-|                   | `withRateLimit`           | `.withRateLimit({ intervalMs })`          | Enforces a minimum gap of `intervalMs` ms between steps to avoid hammering rate-limited APIs             |
-|                   | `withTokenBudget`         | `.withTokenBudget(limit)`                 | Aborts the flow before any step where `shared.tokensUsed >= limit`                                       |
-| **Dev**           | `withDryRun`              | `.withDryRun()`                           | Skips all step bodies while still firing hooks — useful for validating observability wiring              |
-|                   | `withMocks`               | `.withMocks(map)`                         | Replaces step bodies at specified indices with mock functions; all other steps run normally              |
-|                   | `withStepLimit`           | `.withStepLimit(max?)`                    | Throws after `max` total step executions (default 1000); counter resets on each `run()` call             |
-|                   | `withAtomicUpdates`       | `.parallelAtomic(fns, reducer, options?)` | Sugar over `parallel()` with a reducer — each fn runs on an isolated draft, reducer merges results       |
+| Category          | Plugin                    | Method                                    | Description                                                                                                        |
+| ----------------- | ------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **Observability** | `withHistory`             | `.withHistory()`                          | Appends a shallow state snapshot after each step to `shared.__history`                                             |
+|                   | `withTiming`              | `.withTiming()`                           | Records wall-clock duration (ms) of each step in `shared.__timings[index]`                                         |
+|                   | `withVerbose`             | `.withVerbose()`                          | Prints the full `shared` object to stdout after each step                                                          |
+|                   | `withInterrupts`          | `.interruptIf(condition)`                 | Pauses the flow by throwing an `InterruptError` (with a deep-clone of `shared`) when condition is true             |
+| **Persistence**   | `withCheckpoint`          | `.withCheckpoint(store)`                  | Saves `shared` to a store after each successful step                                                               |
+|                   | `withAuditLog`            | `.withAuditLog(store)`                    | Writes an immutable deep-clone audit entry to a store after every step (success and error)                         |
+|                   | `withReplay`              | `.withReplay(fromStep)`                   | Skips all steps before `fromStep`; combine with `.withCheckpoint()` to resume a failed flow                        |
+|                   | `withVersionedCheckpoint` | `.withVersionedCheckpoint(store)`         | Saves diff-based versioned checkpoints with parent pointers after each step that changes state                     |
+|                   |                           | `.resumeFrom(version, store)`             | Resolves a version id and skips all steps up to and including the saved step index                                 |
+| **Resilience**    | `withCircuitBreaker`      | `.withCircuitBreaker(opts?)`              | Opens the circuit after `maxFailures` consecutive failures and rejects all steps until `resetMs` elapses           |
+|                   | `withFallback`            | `.withFallback(fn)`                       | Catches any step error and calls `fn` instead of propagating, allowing the flow to continue                        |
+|                   | `withTimeout`             | `.withTimeout(ms)`                        | Aborts any step that exceeds `ms` milliseconds with a descriptive error                                            |
+|                   | `withCycles`              | `.withCycles(n, anchor?)`                 | Throws after `n` anchor jumps globally, or after `n` visits to a named anchor — guards against infinite goto loops |
+| **Messaging**     | `withChannels`            | `.withChannels()`                         | Initialises a `Map`-based message-channel system on `shared.__channels`                                            |
+| **LLM**           | `withCostTracker`         | `.withCostTracker()`                      | Accumulates per-step `shared.__stepCost` values into `shared.__cost` after each step                               |
+|                   | `withRateLimit`           | `.withRateLimit({ intervalMs })`          | Enforces a minimum gap of `intervalMs` ms between steps to avoid hammering rate-limited APIs                       |
+|                   | `withTokenBudget`         | `.withTokenBudget(limit)`                 | Aborts the flow before any step where `shared.tokensUsed >= limit`                                                 |
+| **Dev**           | `withDryRun`              | `.withDryRun()`                           | Skips all step bodies while still firing hooks — useful for validating observability wiring                        |
+|                   | `withMocks`               | `.withMocks(map)`                         | Replaces step bodies at specified indices with mock functions; all other steps run normally                        |
+|                   | `withStepLimit`           | `.withStepLimit(max?)`                    | Throws after `max` total step executions (default 1000); counter resets on each `run()` call                       |
+|                   | `withAtomicUpdates`       | `.parallelAtomic(fns, reducer, options?)` | Sugar over `parallel()` with a reducer — each fn runs on an isolated draft, reducer merges results                 |
 
 Plugins are imported from `flowneer/plugins` (or their individual subpath) and registered once with `FlowBuilder.use()`:
 

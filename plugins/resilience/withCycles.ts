@@ -4,37 +4,60 @@ declare module "../../Flowneer" {
   interface FlowBuilder<S, P> {
     /**
      * Guard against infinite goto loops.
-     * Tracks total label jumps per `run()` and throws if `maxJumps` is exceeded.
-     * Default: 100.
+     *
+     * - `withCycles(n)` — throws after `n` total anchor jumps per `run()`.
+     * - `withCycles(n, "anchorName")` — throws after `n` visits to the named
+     *   anchor via goto. The global limit (if also set) still applies.
+     * - Both forms can be combined: `.withCycles(100).withCycles(5, "fast")`
      */
-    withCycles(maxJumps?: number): this;
+    withCycles(maxJumps: number, anchor?: string): this;
   }
 }
 
 export const withCycles: FlowneerPlugin = {
-  withCycles(this: any, maxJumps: number = 100) {
-    let jumps = 0;
+  withCycles(this: any, maxJumps: number, anchor?: string) {
+    // Each call to withCycles registers a single, independent limit.
+    // Multiple calls stack naturally via the hook system.
+    let count = 0;
+    let prevIndex = -1;
+
     this._setHooks({
       beforeFlow: () => {
-        jumps = 0;
+        count = 0;
+        prevIndex = -1;
       },
       beforeStep: (meta: any) => {
-        // A goto manifests as the runner jumping to a label step.
-        // We count every step visit; if it exceeds maxJumps it's likely looping.
-        if (meta.type === "fn" || meta.type === "branch") {
-          // The runner already skips label steps, so we simply count overall.
+        // A backward (or repeated) index means a goto just fired.
+        if (prevIndex !== -1 && meta.index <= prevIndex) {
+          // Resolve which anchor was jumped to by scanning back from
+          // meta.index - 1 through any consecutive anchor steps.
+          let jumpedAnchor: string | undefined;
+          for (let k = meta.index - 1; k >= 0; k--) {
+            const s = this.steps[k];
+            if (s?.type === "anchor") {
+              jumpedAnchor = s.name;
+            } else {
+              break;
+            }
+          }
+
+          count++;
+
+          if (anchor === undefined) {
+            // Global jump counter
+            if (count > maxJumps)
+              throw new Error(
+                `cycle limit exceeded: ${count} anchor jumps > maxJumps(${maxJumps})`,
+              );
+          } else {
+            // Per-anchor counter
+            if (jumpedAnchor === anchor && count > maxJumps)
+              throw new Error(
+                `cycle limit exceeded for anchor "${anchor}": ${count} visits > limit(${maxJumps})`,
+              );
+          }
         }
-      },
-      afterStep: (_meta: any, shared: any) => {
-        // After each step, check if a goto happened by inspecting the runner's
-        // jump behaviour. Since we can't directly hook the goto, we track via
-        // a shared sentinel: if the same step index repeats, the step counter
-        // resets. Simpler: just count every step and cap it.
-        jumps++;
-        if (jumps > maxJumps)
-          throw new Error(
-            `cycle limit exceeded: ${jumps} step executions > maxJumps(${maxJumps})`,
-          );
+        prevIndex = meta.index;
       },
     });
     return this;

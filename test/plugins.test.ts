@@ -730,7 +730,7 @@ describe("withAtomicUpdates", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("withCycles", () => {
-  test("allows flows within cycle limit", async () => {
+  test("allows flows within cycle limit (no gotos)", async () => {
     const shared = { count: 0 };
     await (new FlowBuilder() as any)
       .withCycles(20)
@@ -744,13 +744,71 @@ describe("withCycles", () => {
     expect(shared.count).toBe(2);
   });
 
-  test("throws when cycle limit exceeded", async () => {
+  test("throws on global jump limit exceeded", async () => {
     const flow = (new FlowBuilder() as any).withCycles(3);
     flow.anchor("loop").then(async (s: any) => {
       s.n = (s.n ?? 0) + 1;
       return "#loop"; // forever
     });
     await expect(flow.run({ n: 0 })).rejects.toThrow("cycle limit exceeded");
+  });
+
+  test("allows gotos within global limit", async () => {
+    const shared = { n: 0 };
+    const flow = (new FlowBuilder() as any).withCycles(5);
+    flow.anchor("loop").then(async (s: any) => {
+      s.n++;
+      if (s.n < 3) return "#loop";
+    });
+    await flow.run(shared);
+    expect(shared.n).toBe(3); // 2 jumps → within limit of 5
+  });
+
+  test("throws when per-anchor limit exceeded", async () => {
+    const flow = (new FlowBuilder() as any).withCycles(5, "fast");
+    flow.anchor("fast").then(async (s: any) => {
+      s.n = (s.n ?? 0) + 1;
+      return "#fast"; // loops forever on "fast"
+    });
+    await expect(flow.run({ n: 0 })).rejects.toThrow(
+      'cycle limit exceeded for anchor "fast"',
+    );
+  });
+
+  test("independent per-anchor limits", async () => {
+    const shared = { a: 0, b: 0, done: false };
+    // "slow" anchor allows 5 visits, "fast" allows 2
+    const flow = (new FlowBuilder() as any)
+      .withCycles(2, "fast")
+      .withCycles(5, "slow");
+    flow
+      .anchor("fast")
+      .then(async (s: any) => {
+        s.a++;
+        if (s.a < 2) return "#fast";
+        // exit "fast" loop, enter "slow" loop
+      })
+      .anchor("slow")
+      .then(async (s: any) => {
+        s.b++;
+        if (s.b < 4) return "#slow";
+        // exit "slow" loop
+      });
+    await flow.run(shared);
+    expect(shared.a).toBe(2); // 1 jump to "fast"
+    expect(shared.b).toBe(4); // 3 jumps to "slow"
+  });
+
+  test("per-anchor limit does not affect unrelated anchors", async () => {
+    const shared = { n: 0 };
+    // Only limit "other", loop on "loop" 3 times — should not throw
+    const flow = (new FlowBuilder() as any).withCycles(1, "other");
+    flow.anchor("loop").then(async (s: any) => {
+      s.n++;
+      if (s.n < 3) return "#loop";
+    });
+    await flow.run(shared);
+    expect(shared.n).toBe(3);
   });
 });
 
