@@ -52,6 +52,10 @@ The `key` option defaults to `"__batchItem"` so existing code is fully backward-
 
 The save/restore logic for the batch item key was changed to use `Object.prototype.hasOwnProperty` instead of an `=== undefined` check. This means a property explicitly set to `undefined` on `shared` before the batch runs is now correctly preserved after the batch completes.
 
+## Minor Improvements
+
+- The `idleTimeout` option was added to the Bun server in the streaming server example to prevent idle connections from hanging indefinitely. The timeout is set to 60 seconds.
+
 ## Breaking Changes
 
 ### `label()` renamed to `anchor()` — goto prefix changed from `→` to `#`

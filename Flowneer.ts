@@ -376,7 +376,7 @@ export class FlowBuilder<
                 step.delaySec,
                 () => step.fn(shared, params),
               );
-              if (typeof result === "string" && result.startsWith("#"))
+              if (typeof result === "string" && result[0] === "#")
                 gotoTarget = result.slice(1);
               break;
             }
@@ -395,10 +395,7 @@ export class FlowBuilder<
                   step.delaySec,
                   () => fn(shared, params),
                 );
-                if (
-                  typeof branchResult === "string" &&
-                  branchResult.startsWith("#")
-                )
+                if (typeof branchResult === "string" && branchResult[0] === "#")
                   gotoTarget = branchResult.slice(1);
               }
               break;
