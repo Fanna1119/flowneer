@@ -14,10 +14,23 @@ export type NodeFn<
   params: P,
 ) => Promise<string | undefined | void> | string | undefined | void;
 
-export interface NodeOptions {
-  retries?: number;
-  delaySec?: number;
-  timeoutMs?: number;
+/**
+ * A numeric value or a function that computes it from the current shared state
+ * and params. Use functions for dynamic per-item behaviour, e.g.
+ * `retries: (s) => (s.__batchItem % 3 === 0 ? 3 : 1)`.
+ */
+export type NumberOrFn<
+  S = any,
+  P extends Record<string, unknown> = Record<string, unknown>,
+> = number | ((shared: S, params: P) => number);
+
+export interface NodeOptions<
+  S = any,
+  P extends Record<string, unknown> = Record<string, unknown>,
+> {
+  retries?: NumberOrFn<S, P>;
+  delaySec?: NumberOrFn<S, P>;
+  timeoutMs?: NumberOrFn<S, P>;
 }
 
 export interface RunOptions {
@@ -31,18 +44,18 @@ export interface RunOptions {
 interface FnStep<S, P extends Record<string, unknown>> {
   type: "fn";
   fn: NodeFn<S, P>;
-  retries: number;
-  delaySec: number;
-  timeoutMs: number;
+  retries: NumberOrFn<S, P>;
+  delaySec: NumberOrFn<S, P>;
+  timeoutMs: NumberOrFn<S, P>;
 }
 
 interface BranchStep<S, P extends Record<string, unknown>> {
   type: "branch";
   router: NodeFn<S, P>;
   branches: Record<string, NodeFn<S, P>>;
-  retries: number;
-  delaySec: number;
-  timeoutMs: number;
+  retries: NumberOrFn<S, P>;
+  delaySec: NumberOrFn<S, P>;
+  timeoutMs: NumberOrFn<S, P>;
 }
 
 interface LoopStep<S, P extends Record<string, unknown>> {
@@ -61,9 +74,9 @@ interface BatchStep<S, P extends Record<string, unknown>> {
 interface ParallelStep<S, P extends Record<string, unknown>> {
   type: "parallel";
   fns: NodeFn<S, P>[];
-  retries: number;
-  delaySec: number;
-  timeoutMs: number;
+  retries: NumberOrFn<S, P>;
+  delaySec: NumberOrFn<S, P>;
+  timeoutMs: NumberOrFn<S, P>;
   reducer?: (shared: S, drafts: S[]) => void;
 }
 
@@ -256,13 +269,13 @@ export class FlowBuilder<
   // -----------------------------------------------------------------------
 
   /** Set the first step, resetting any prior chain. */
-  startWith(fn: NodeFn<S, P>, options?: NodeOptions): this {
+  startWith(fn: NodeFn<S, P>, options?: NodeOptions<S, P>): this {
     this.steps = [];
     return this._addFn(fn, options);
   }
 
   /** Append a sequential step. */
-  then(fn: NodeFn<S, P>, options?: NodeOptions): this {
+  then(fn: NodeFn<S, P>, options?: NodeOptions<S, P>): this {
     return this._addFn(fn, options);
   }
 
@@ -273,16 +286,15 @@ export class FlowBuilder<
   branch(
     router: NodeFn<S, P>,
     branches: Record<string, NodeFn<S, P>>,
-    options?: NodeOptions,
+    options?: NodeOptions<S, P>,
   ): this {
-    const { retries = 1, delaySec = 0, timeoutMs = 0 } = options ?? {};
     this.steps.push({
       type: "branch",
       router,
       branches,
-      retries,
-      delaySec,
-      timeoutMs,
+      retries: options?.retries ?? 1,
+      delaySec: options?.delaySec ?? 0,
+      timeoutMs: options?.timeoutMs ?? 0,
     });
     return this;
   }
@@ -344,16 +356,15 @@ export class FlowBuilder<
    */
   parallel(
     fns: NodeFn<S, P>[],
-    options?: NodeOptions,
+    options?: NodeOptions<S, P>,
     reducer?: (shared: S, drafts: S[]) => void,
   ): this {
-    const { retries = 1, delaySec = 0, timeoutMs = 0 } = options ?? {};
     this.steps.push({
       type: "parallel",
       fns,
-      retries,
-      delaySec,
-      timeoutMs,
+      retries: options?.retries ?? 1,
+      delaySec: options?.delaySec ?? 0,
+      timeoutMs: options?.timeoutMs ?? 0,
       reducer,
     });
     return this;
@@ -417,8 +428,8 @@ export class FlowBuilder<
           switch (step.type) {
             case "fn": {
               const result = await this._retry(
-                step.retries,
-                step.delaySec,
+                this._res(step.retries, 1, shared, params),
+                this._res(step.delaySec, 0, shared, params),
                 () => step.fn(shared, params),
               );
               if (typeof result === "string" && result[0] === "#")
@@ -427,18 +438,16 @@ export class FlowBuilder<
             }
 
             case "branch": {
-              const action = await this._retry(
-                step.retries,
-                step.delaySec,
-                () => step.router(shared, params),
+              const bRetries = this._res(step.retries, 1, shared, params);
+              const bDelay = this._res(step.delaySec, 0, shared, params);
+              const action = await this._retry(bRetries, bDelay, () =>
+                step.router(shared, params),
               );
               const key = action ? String(action) : "default";
               const fn = step.branches[key] ?? step.branches["default"];
               if (fn) {
-                const branchResult = await this._retry(
-                  step.retries,
-                  step.delaySec,
-                  () => fn(shared, params),
+                const branchResult = await this._retry(bRetries, bDelay, () =>
+                  fn(shared, params),
                 );
                 if (typeof branchResult === "string" && branchResult[0] === "#")
                   gotoTarget = branchResult.slice(1);
@@ -471,6 +480,8 @@ export class FlowBuilder<
 
             case "parallel": {
               const pfnWrappers = hooks.wrapParallelFn;
+              const pRetries = this._res(step.retries, 1, shared, params);
+              const pDelay = this._res(step.delaySec, 0, shared, params);
 
               if (step.reducer) {
                 // Safe mode: each fn gets its own shallow draft
@@ -480,9 +491,7 @@ export class FlowBuilder<
                     const draft = { ...shared } as S;
                     drafts[fi] = draft;
                     const exec = () =>
-                      this._retry(step.retries, step.delaySec, () =>
-                        fn(draft, params),
-                      );
+                      this._retry(pRetries, pDelay, () => fn(draft, params));
                     const wrapped = pfnWrappers.reduceRight<
                       () => Promise<void>
                     >(
@@ -500,9 +509,7 @@ export class FlowBuilder<
                 await Promise.all(
                   step.fns.map((fn, fi) => {
                     const exec = () =>
-                      this._retry(step.retries, step.delaySec, () =>
-                        fn(shared, params),
-                      );
+                      this._retry(pRetries, pDelay, () => fn(shared, params));
                     const wrapped = pfnWrappers.reduceRight<
                       () => Promise<void>
                     >(
@@ -521,9 +528,12 @@ export class FlowBuilder<
           }
         };
 
-        const { timeoutMs } = step as { timeoutMs?: number };
+        const rawTimeout = (step as { timeoutMs?: NumberOrFn<S, P> }).timeoutMs;
+        const resolvedTimeout = this._res(rawTimeout, 0, shared, params);
         const baseExec = (): Promise<void> =>
-          timeoutMs! > 0 ? this._withTimeout(timeoutMs!, runBody) : runBody();
+          resolvedTimeout > 0
+            ? this._withTimeout(resolvedTimeout, runBody)
+            : runBody();
 
         const wrappers = hooks.wrapStep;
         const wrapped = wrappers.reduceRight<() => Promise<void>>(
@@ -552,10 +562,26 @@ export class FlowBuilder<
     }
   }
 
-  private _addFn(fn: NodeFn<S, P>, options?: NodeOptions): this {
-    const { retries = 1, delaySec = 0, timeoutMs = 0 } = options ?? {};
-    this.steps.push({ type: "fn", fn, retries, delaySec, timeoutMs });
+  private _addFn(fn: NodeFn<S, P>, options?: NodeOptions<S, P>): this {
+    this.steps.push({
+      type: "fn",
+      fn,
+      retries: options?.retries ?? 1,
+      delaySec: options?.delaySec ?? 0,
+      timeoutMs: options?.timeoutMs ?? 0,
+    });
     return this;
+  }
+
+  /** Resolve a NumberOrFn value against the current shared state and params. */
+  private _res(
+    val: NumberOrFn<S, P> | undefined,
+    def: number,
+    shared: S,
+    params: P,
+  ): number {
+    if (val === undefined) return def;
+    return typeof val === "function" ? val(shared, params) : val;
   }
 
   private async _runSub(label: string, fn: () => Promise<void>): Promise<void> {
