@@ -746,9 +746,9 @@ describe("withCycles", () => {
 
   test("throws when cycle limit exceeded", async () => {
     const flow = (new FlowBuilder() as any).withCycles(3);
-    flow.label("loop").then(async (s: any) => {
+    flow.anchor("loop").then(async (s: any) => {
       s.n = (s.n ?? 0) + 1;
-      return "→loop"; // forever
+      return "#loop"; // forever
     });
     await expect(flow.run({ n: 0 })).rejects.toThrow("cycle limit exceeded");
   });

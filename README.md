@@ -104,9 +104,9 @@ await new FlowBuilder<TickState>()
 // → done, ticks = 3
 ```
 
-### `batch(items, processor)`
+### `batch(items, processor, options?)`
 
-Run a sub-flow once per item. The current item is available as `shared.__batchItem`.
+Run a sub-flow once per item. The current item is written to `shared.__batchItem` by default.
 
 ```typescript
 interface SumState {
@@ -129,6 +129,39 @@ await new FlowBuilder<SumState>()
   .then(async (s) => console.log(s.results))
   .run({ numbers: [1, 2, 3], results: [] });
 // → [2, 4, 6]
+```
+
+**Nested batches** — pass a `{ key }` option to give each level its own property name, so inner and outer items don't overwrite each other:
+
+```typescript
+interface NestedState {
+  groups: { name: string; members: string[] }[];
+  results: string[];
+  __group?: { name: string; members: string[] };
+  __member?: string;
+}
+
+await new FlowBuilder<NestedState>()
+  .batch(
+    (s) => s.groups,
+    (b) =>
+      b
+        .startWith((s) => {
+          // s.__group is the current group
+        })
+        .batch(
+          (s) => s.__group!.members,
+          (inner) =>
+            inner.startWith((s) => {
+              // both s.__group and s.__member are accessible
+              s.results.push(`${s.__group!.name}:${s.__member!}`);
+            }),
+          { key: "__member" },
+        ),
+    { key: "__group" },
+  )
+  .run({ groups: [{ name: "A", members: ["a1", "a2"] }], results: [] });
+// → results: ["A:a1", "A:a2"]
 ```
 
 ### `parallel(fns, options?, reducer?)`
@@ -194,11 +227,11 @@ await new FlowBuilder<ScoreState>()
 
 See [`withAtomicUpdates`](#withatomicupdates) for the plugin shorthand.
 
-### `label(name)`
+### `anchor(name)`
 
-Insert a named marker in the step chain. Labels are no-ops during normal execution — they exist only as jump targets.
+Insert a named marker in the step chain. Anchors are no-ops during normal execution — they exist only as jump targets.
 
-Any `NodeFn` can return `"→labelName"` to jump back (or forward) to that label, enabling iterative refinement and reflection loops without nesting:
+Any `NodeFn` can return `"#anchorName"` to jump back (or forward) to that anchor, enabling iterative refinement and reflection loops without nesting:
 
 ```typescript
 interface RefineState {
@@ -211,13 +244,13 @@ await new FlowBuilder<RefineState>()
   .startWith(async (s) => {
     s.draft = await generateDraft(s);
   })
-  .label("refine")
+  .anchor("refine")
   .then(async (s) => {
     s.quality = await scoreDraft(s.draft);
     if (s.quality < 0.8) {
       s.draft = await improveDraft(s.draft);
       s.passes++;
-      return "→refine"; // jump back to the label
+      return "#refine"; // jump back to the anchor
     }
   })
   .then(async (s) => console.log("Final draft after", s.passes, "passes"))
@@ -540,19 +573,19 @@ All three sub-agents share the same `shared` object and run concurrently. Avoid 
 
 To eliminate race conditions entirely, pass a `reducer` as the third argument to `.parallel()`, or use `.parallelAtomic()` from [`withAtomicUpdates`](#withatomicupdates). Each sub-agent then operates on its own isolated draft and the reducer decides how to merge.
 
-### Iterative refinement with `label` + goto
+### Iterative refinement with `anchor` + goto
 
-Use `label` / `→label` return values for reflection loops that don't need nesting:
+Use `anchor` / `#anchor` return values for reflection loops that don't need nesting:
 
 ```typescript
 const reactAgent = new FlowBuilder<AgentState>()
   .startWith(think)
-  .label("act")
+  .anchor("act")
   .then(async (s) => {
     const result = await callTool(s.toolCall);
     s.observations.push(result);
     s.done = await shouldStop(s);
-    if (!s.done) return "→act";
+    if (!s.done) return "#act";
   })
   .then(formatOutput);
 ```
