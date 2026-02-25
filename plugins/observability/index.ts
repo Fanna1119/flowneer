@@ -2,3 +2,6 @@ export { withTiming } from "./withTiming";
 export { withHistory } from "./withHistory";
 export { withVerbose } from "./withVerbose";
 export { withInterrupts } from "./withInterrupts";
+export { withCallbacks } from "./withCallbacks";
+
+export type { CallbackHandlers } from "./withCallbacks";

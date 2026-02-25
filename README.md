@@ -3,14 +3,14 @@
 </div>
 
 <p>
-  <a href="https://www.npmjs.com/package/flowneer"><img src="https://badges.ws/npm/v/flowneer" /></a>
+  <a href="https://www.npmjs.com/package/flowneer"><img src="https://img.shields.io/npm/v/flowneer" /></a>
   <a href="https://deno.bundlejs.com/badge?q=flowneer"><img src="https://deno.bundlejs.com/badge?q=flowneer" /></a>
-  <a href="https://www.npmjs.com/package/flowneer"><img src="https://badges.ws/npm/l/flowneer" /></a>
-  <a href="https://www.npmjs.com/package/flowneer"><img src="https://badges.ws/npm/dt/flowneer" /></a>
+  <a href="https://www.npmjs.com/package/flowneer"><img src="https://img.shields.io/npm/l/flowneer" /></a>
+  <a href="https://www.npmjs.com/package/flowneer"><img src="https://img.shields.io/npm/d18m/flowneer" /></a>
   <a href="https://deepwiki.com/Fanna1119/flowneer"><img src="https://deepwiki.com/badge.svg" /></a>
 </p>
 
-A tiny, zero-dependency fluent flow builder for TypeScript. Chain steps, branch on conditions, loop, batch-process, and run tasks in parallel — all through a single `FlowBuilder` class. Extend it with plugins.
+A tiny, zero-dependency fluent flow builder for TypeScript. Chain steps, branch on conditions, loop, batch-process, and run tasks in parallel — all through a single `FlowBuilder` class. Extend it with plugins for tool calling, ReAct agent loops, human-in-the-loop, memory, structured output, streaming, graph-based flow composition, eval, and more.
 
 ## Install
 
@@ -328,6 +328,40 @@ const controller = new AbortController();
 await flow.run(shared, undefined, { signal: controller.signal });
 ```
 
+### `stream(shared, params?, options?)`
+
+An async-generator alternative to `run()` that yields `StreamEvent` values as the flow executes. Useful for pushing incremental updates to a UI or SSE endpoint.
+
+```typescript
+import type { StreamEvent } from "flowneer";
+
+for await (const event of flow.stream(shared)) {
+  if (event.type === "step:before") console.log("→ step", event.meta.index);
+  if (event.type === "step:after") console.log("✓ step", event.meta.index);
+  if (event.type === "chunk") process.stdout.write(event.chunk as string);
+  if (event.type === "error") console.error(event.error);
+  if (event.type === "done") break;
+}
+```
+
+Steps emit chunks by assigning to `shared.__stream`; each assignment yields a `"chunk"` event:
+
+```typescript
+.then(async (s) => {
+  for await (const token of llmStream()) {
+    s.__stream = token; // → yields { type: "chunk", chunk: token, meta }
+  }
+})
+```
+
+| Event type    | Extra fields     | When emitted                            |
+| ------------- | ---------------- | --------------------------------------- |
+| `step:before` | `meta`           | Before each step                        |
+| `step:after`  | `meta`, `shared` | After each step completes               |
+| `chunk`       | `meta`, `chunk`  | When a step writes to `shared.__stream` |
+| `error`       | `meta`, `error`  | When a step throws                      |
+| `done`        | `shared`         | After the flow finishes                 |
+
 ### Options
 
 Any step that accepts `options` supports:
@@ -399,6 +433,7 @@ A plugin is an object of functions that get copied onto `FlowBuilder.prototype`.
 |                   | `withTiming`              | `.withTiming()`                           | Records wall-clock duration (ms) of each step in `shared.__timings[index]`                                         |
 |                   | `withVerbose`             | `.withVerbose()`                          | Prints the full `shared` object to stdout after each step                                                          |
 |                   | `withInterrupts`          | `.interruptIf(condition)`                 | Pauses the flow by throwing an `InterruptError` (with a deep-clone of `shared`) when condition is true             |
+|                   | `withCallbacks`           | `.withCallbacks(handlers)`                | LangChain-style lifecycle callbacks dispatched by step label prefix (`llm:*`, `tool:*`, `agent:*`)                 |
 | **Persistence**   | `withCheckpoint`          | `.withCheckpoint(store)`                  | Saves `shared` to a store after each successful step                                                               |
 |                   | `withAuditLog`            | `.withAuditLog(store)`                    | Writes an immutable deep-clone audit entry to a store after every step (success and error)                         |
 |                   | `withReplay`              | `.withReplay(fromStep)`                   | Skips all steps before `fromStep`; combine with `.withCheckpoint()` to resume a failed flow                        |
@@ -409,9 +444,17 @@ A plugin is an object of functions that get copied onto `FlowBuilder.prototype`.
 |                   | `withTimeout`             | `.withTimeout(ms)`                        | Aborts any step that exceeds `ms` milliseconds with a descriptive error                                            |
 |                   | `withCycles`              | `.withCycles(n, anchor?)`                 | Throws after `n` anchor jumps globally, or after `n` visits to a named anchor — guards against infinite goto loops |
 | **Messaging**     | `withChannels`            | `.withChannels()`                         | Initialises a `Map`-based message-channel system on `shared.__channels`                                            |
+|                   | `withStream`              | `.withStream()`                           | Enables real-time chunk streaming via `shared.__stream` (see `.stream()`)                                          |
 | **LLM**           | `withCostTracker`         | `.withCostTracker()`                      | Accumulates per-step `shared.__stepCost` values into `shared.__cost` after each step                               |
 |                   | `withRateLimit`           | `.withRateLimit({ intervalMs })`          | Enforces a minimum gap of `intervalMs` ms between steps to avoid hammering rate-limited APIs                       |
 |                   | `withTokenBudget`         | `.withTokenBudget(limit)`                 | Aborts the flow before any step where `shared.tokensUsed >= limit`                                                 |
+|                   | `withStructuredOutput`    | `.withStructuredOutput(opts)`             | Parses and validates a step's LLM output (`shared.__llmOutput`) into a typed object via a Zod-compatible validator |
+| **Tools**         | `withTools`               | `.withTools(registry)`                    | Attaches a `ToolRegistry` to `shared.__tools`; call `registry.execute()` or helpers from any step                  |
+| **Agent**         | `withReActLoop`           | `.withReActLoop(opts)`                    | Built-in ReAct loop: think → tool-call → observe, with configurable `maxIterations` and `onObservation`            |
+|                   | `withHumanNode`           | `.humanNode(opts?)`                       | Inserts a human-in-the-loop pause; pair with `resumeFlow()` to continue after receiving input                      |
+| **Memory**        | `withMemory`              | `.withMemory(instance)`                   | Attaches a `Memory` instance to `shared.__memory`; choose `BufferWindowMemory`, `SummaryMemory`, or `KVMemory`     |
+| **Graph**         | `withGraph`               | `.withGraph()`                            | Describe a flow as a DAG with `.addNode()` / `.addEdge()`, then `.compile()` to a `FlowBuilder` chain              |
+| **Telemetry**     | `withTelemetry`           | `.withTelemetry(opts?)`                   | Structured span telemetry via `TelemetryDaemon`; accepts `consoleExporter`, `otlpExporter`, or a custom exporter   |
 | **Dev**           | `withDryRun`              | `.withDryRun()`                           | Skips all step bodies while still firing hooks — useful for validating observability wiring                        |
 |                   | `withMocks`               | `.withMocks(map)`                         | Replaces step bodies at specified indices with mock functions; all other steps run normally                        |
 |                   | `withStepLimit`           | `.withStepLimit(max?)`                    | Throws after `max` total step executions (default 1000); counter resets on each `run()` call                       |
@@ -507,19 +550,277 @@ Multiple `wrapStep` (or `wrapParallelFn`) registrations compose — the first re
 
 ### What plugins are for
 
-| Concern                      | Plugin / hook                 | Hook(s) used                        |
-| ---------------------------- | ----------------------------- | ----------------------------------- |
-| Observability / tracing      | `withHistory`, `withTiming`   | `beforeStep` + `afterStep`          |
-| Persistence / checkpointing  | `withCheckpoint`              | `afterStep`                         |
-| Versioned persistence        | `withVersionedCheckpoint`     | `beforeFlow` + `afterStep`          |
-| Step/execution skip          | `withDryRun`, `withReplay`    | `wrapStep`                          |
-| Safe parallel isolation      | `withAtomicUpdates`           | `wrapParallelFn` (via core reducer) |
-| Human-in-the-loop / approval | `withInterrupts`              | `then()` + `InterruptError`         |
-| Message passing              | `withChannels`                | `beforeFlow`                        |
-| Infinite-loop protection     | `withCycles`, `withStepLimit` | `afterStep` / `beforeStep`          |
-| Cleanup / teardown           | custom                        | `afterFlow`                         |
+| Concern                      | Plugin / hook                     | Hook(s) used                             |
+| ---------------------------- | --------------------------------- | ---------------------------------------- |
+| Observability / tracing      | `withHistory`, `withTiming`       | `beforeStep` + `afterStep`               |
+| Lifecycle callbacks          | `withCallbacks`                   | `beforeStep` + `afterStep` + `onError`   |
+| Persistence / checkpointing  | `withCheckpoint`                  | `afterStep`                              |
+| Versioned persistence        | `withVersionedCheckpoint`         | `beforeFlow` + `afterStep`               |
+| Step/execution skip          | `withDryRun`, `withReplay`        | `wrapStep`                               |
+| Safe parallel isolation      | `withAtomicUpdates`               | `wrapParallelFn` (via core reducer)      |
+| Human-in-the-loop / approval | `withInterrupts`, `withHumanNode` | `then()` + `InterruptError`              |
+| Message passing              | `withChannels`                    | `beforeFlow`                             |
+| Real-time streaming          | `withStream` / `.stream()`        | `afterStep` (chunk injection)            |
+| Infinite-loop protection     | `withCycles`, `withStepLimit`     | `afterStep` / `beforeStep`               |
+| Tool calling                 | `withTools`                       | `beforeFlow`                             |
+| Agent loops                  | `withReActLoop`                   | `then()` + `loop()`                      |
+| Memory management            | `withMemory`                      | `beforeFlow`                             |
+| Structured output            | `withStructuredOutput`            | `afterStep`                              |
+| Graph-based composition      | `withGraph`                       | DSL compiler (pre-run)                   |
+| Telemetry / spans            | `withTelemetry`                   | `beforeStep` + `afterStep` + `afterFlow` |
+| Cleanup / teardown           | custom                            | `afterFlow`                              |
 
 See [examples/observePlugin.ts](examples/observePlugin.ts) and [examples/persistPlugin.ts](examples/persistPlugin.ts) for complete implementations.
+
+---
+
+## Tool calling
+
+Register typed tools and call them from any step:
+
+```typescript
+import { withTools, ToolRegistry, executeTool } from "flowneer/plugins/tools";
+FlowBuilder.use(withTools);
+
+const tools = new ToolRegistry([
+  {
+    name: "search",
+    description: "Search the web",
+    params: { query: { type: "string", description: "Query", required: true } },
+    execute: async ({ query }) => fetchSearchResults(query),
+  },
+]);
+
+const flow = new FlowBuilder<State>().withTools(tools).startWith(async (s) => {
+  const result = await s.__tools.execute({
+    name: "search",
+    args: { query: s.question },
+  });
+  s.searchResult = result;
+});
+```
+
+`ToolRegistry` exposes `get`, `has`, `names`, `definitions`, `execute`, and `executeAll`. The standalone helpers `getTools(s)`, `executeTool(s, call)`, and `executeTools(s, calls)` work without the plugin method.
+
+---
+
+## ReAct agent loop
+
+`.withReActLoop` inserts a wired think → tool-call → observe loop. Your `think` function receives the current state (including `shared.__toolResults` from the previous round) and returns either a finish action or tool calls:
+
+```typescript
+import { withReActLoop } from "flowneer/plugins/agent";
+FlowBuilder.use(withReActLoop);
+
+const flow = new FlowBuilder<State>().withTools(tools).withReActLoop({
+  maxIterations: 8,
+  think: async (s) => {
+    const res = await llm(s.messages);
+    return res.toolCalls.length
+      ? { action: "tool", calls: res.toolCalls }
+      : { action: "finish", output: res.text };
+  },
+  onObservation: (results, s) => {
+    s.messages.push({ role: "tool", content: JSON.stringify(results) });
+  },
+});
+
+// After run: s.__reactOutput holds the final answer
+// s.__reactExhausted === true if maxIterations was reached
+```
+
+---
+
+## Human-in-the-loop with `humanNode`
+
+`.humanNode()` is a higher-level alternative to `interruptIf`. The `resumeFlow` helper merges human edits back into the saved state and re-runs:
+
+```typescript
+import { withHumanNode, resumeFlow } from "flowneer/plugins/agent";
+FlowBuilder.use(withHumanNode);
+
+const flow = new FlowBuilder<DraftState>()
+  .startWith(generateDraft)
+  .humanNode({ prompt: "Please review the draft." })
+  .then(publishDraft);
+
+try {
+  await flow.run(state);
+} catch (e) {
+  if (e instanceof InterruptError) {
+    const feedback = await showReviewUI(e.savedShared);
+    await resumeFlow(flow, e.savedShared, { feedback });
+  }
+}
+```
+
+---
+
+## Multi-agent patterns
+
+Four factory functions compose flows into common multi-agent topologies:
+
+```typescript
+import {
+  supervisorCrew,
+  sequentialCrew,
+  hierarchicalCrew,
+  roundRobinDebate,
+} from "flowneer/plugins/agent";
+
+// Supervisor → parallel workers → optional aggregator
+const crew = supervisorCrew<State>(
+  (s) => {
+    s.plan = makePlan(s);
+  },
+  [researchAgent, codeAgent, reviewAgent],
+  {
+    post: (s) => {
+      s.report = compile(s);
+    },
+  },
+);
+await crew.run(state);
+
+// Round-robin debate across agents for N rounds
+const debate = roundRobinDebate<State>([agentA, agentB, agentC], 3);
+await debate.run(state);
+```
+
+All factory functions return a plain `FlowBuilder` and compose with every other plugin.
+
+---
+
+## Memory
+
+Three memory classes let you manage conversation history. All implement the same `Memory` interface (`add / get / clear / toContext`):
+
+```typescript
+import {
+  BufferWindowMemory,
+  SummaryMemory,
+  KVMemory,
+  withMemory,
+} from "flowneer/plugins/memory";
+FlowBuilder.use(withMemory);
+
+const memory = new BufferWindowMemory({ maxMessages: 20 });
+
+const flow = new FlowBuilder<State>()
+  .withMemory(memory) // attaches to shared.__memory
+  .startWith(async (s) => {
+    s.__memory.add({ role: "user", content: s.userInput });
+    const history = s.__memory.toContext();
+    s.response = await llm(history);
+    s.__memory.add({ role: "assistant", content: s.response });
+  });
+```
+
+| Class                | Behaviour                                                         |
+| -------------------- | ----------------------------------------------------------------- |
+| `BufferWindowMemory` | Keeps the last `maxMessages` messages (sliding window)            |
+| `SummaryMemory`      | Compresses oldest messages via a user-supplied `summarize()` fn   |
+| `KVMemory`           | Key-value store; supports `toJSON()` / `fromJSON()` serialisation |
+
+---
+
+## Output parsers
+
+Four pure functions parse structured data from LLM text. No plugin registration needed:
+
+```typescript
+import {
+  parseJsonOutput,
+  parseListOutput,
+  parseMarkdownTable,
+  parseRegexOutput,
+} from "flowneer/plugins/output";
+
+const obj = parseJsonOutput(llmText); // raw JSON, fenced, or embedded in prose
+const items = parseListOutput(llmText); // dash, *, •, numbered, or newline-separated
+const rows = parseMarkdownTable(llmText); // GFM table → Record<string,string>[]
+const match = parseRegexOutput(llmText, /(?<id>\d+)/); // named or positional capture groups
+```
+
+All parsers accept an optional `Validator<T>` (Zod-compatible) as the last argument.
+
+---
+
+## Structured output
+
+Validate LLM output against a schema after a step runs. The plugin reads `shared.__llmOutput`, runs the optional `parse` function (e.g. `JSON.parse`), then passes the result through `validator.parse()`:
+
+```typescript
+import { withStructuredOutput } from "flowneer/plugins/llm";
+FlowBuilder.use(withStructuredOutput);
+
+const flow = new FlowBuilder<State>()
+  .withStructuredOutput({ parse: JSON.parse, validator: myZodSchema })
+  .startWith(callLlm); // step must write to shared.__llmOutput
+
+// s.__structuredOutput — parsed & validated result
+// s.__validationError  — set if parsing or validation failed
+```
+
+---
+
+## Eval harness
+
+Run a flow against a labelled dataset and collect per-item scores:
+
+```typescript
+import { runEvalSuite, exactMatch, f1Score } from "flowneer/plugins/eval";
+
+const { results, summary } = await runEvalSuite(
+  [{ question: "What is 2+2?", expected: "4" }, ...],
+  myFlow,
+  {
+    accuracy: (item, s) => exactMatch(s.answer, item.expected),
+    f1:       (item, s) => f1Score(s.answer, item.expected),
+  },
+);
+
+console.log(summary.accuracy.mean, summary.f1.mean);
+```
+
+Available scorers: `exactMatch`, `containsMatch`, `f1Score`, `retrievalPrecision`, `retrievalRecall`, `answerRelevance`. Each dataset item runs in a deep-cloned state — no bleed between items. Errors are captured per-item rather than aborting the suite.
+
+---
+
+## Graph-based flow composition
+
+Describe a flow as a directed graph and let Flowneer compile the execution order:
+
+```typescript
+import { withGraph } from "flowneer/plugins/graph";
+FlowBuilder.use(withGraph);
+
+const flow = (new FlowBuilder<State>() as any)
+  .withGraph()
+  .addNode("fetch", (s) => {
+    s.data = fetch(s.url);
+  })
+  .addNode("parse", (s) => {
+    s.parsed = parse(s.data);
+  })
+  .addNode("validate", (s) => {
+    s.valid = validate(s.parsed);
+  })
+  .addNode("retry", (s) => {
+    s.url = nextUrl(s);
+  })
+  .addEdge("fetch", "parse")
+  .addEdge("parse", "validate")
+  .addEdge("validate", "retry", (s) => !s.valid) // conditional back-edge → loop
+  .addEdge("retry", "fetch")
+  .compile(); // returns a ready-to-run FlowBuilder
+
+await flow.run({ url: "https://..." });
+```
+
+`compile()` runs Kahn's topological sort on unconditional edges, classifies conditional edges as forward jumps or back-edges, inserts `anchor` markers for back-edge targets, and emits the matching `FlowBuilder` chain. Throws descriptively on empty graphs, duplicate node names, unknown edge targets, or unconditional cycles.
+
+---
 
 ## AI agent example
 
@@ -667,7 +968,7 @@ try {
 ## Project structure
 
 ```
-Flowneer.ts              Core — FlowBuilder, FlowError, InterruptError, types
+Flowneer.ts              Core — FlowBuilder, FlowError, InterruptError, Validator, StreamEvent, types
 index.ts                 Public exports
 plugins/
   observability/
@@ -675,6 +976,7 @@ plugins/
     withTiming.ts        Per-step wall-clock timing
     withVerbose.ts       Stdout logging
     withInterrupts.ts    Human-in-the-loop / approval gates
+    withCallbacks.ts     LangChain-style lifecycle callbacks (llm:/tool:/agent: prefixes)
   persistence/
     withCheckpoint.ts    Post-step state saves
     withAuditLog.ts      Immutable audit trail
@@ -689,8 +991,34 @@ plugins/
     withCostTracker.ts
     withRateLimit.ts
     withTokenBudget.ts
+    withStructuredOutput.ts  Parse + validate LLM output via Zod-compatible validator
   messaging/
     withChannels.ts      Map-based message channels (sendTo / receiveFrom)
+    withStream.ts        Real-time chunk streaming via shared.__stream
+  tools/
+    withTools.ts         ToolRegistry + withTools plugin + helper functions
+  agent/
+    withReActLoop.ts     Built-in ReAct think → tool-call → observe loop
+    withHumanNode.ts     humanNode() pause + resumeFlow() helper
+    patterns.ts          supervisorCrew / sequentialCrew / hierarchicalCrew / roundRobinDebate
+  memory/
+    types.ts             Memory interface + MemoryMessage type
+    bufferWindowMemory.ts  Sliding-window conversation memory
+    summaryMemory.ts       Auto-summarising memory (user-supplied summarize fn)
+    kvMemory.ts            Key-value memory with JSON serialisation
+    withMemory.ts          Plugin that attaches memory to shared.__memory
+  output/
+    parseJson.ts         Parse raw / fenced / embedded JSON from LLM output
+    parseList.ts         Parse dash / numbered / bullet / newline-separated lists
+    parseTable.ts        Parse GFM markdown tables to Record<string,string>[]
+    parseRegex.ts        Extract named or positional regex capture groups
+  eval/
+    index.ts             Scoring functions + runEvalSuite
+  graph/
+    index.ts             withGraph plugin — DAG compiler (addNode / addEdge / compile)
+  telemetry/
+    telemetry.ts         TelemetryDaemon, consoleExporter, otlpExporter
+    index.ts             withTelemetry plugin wrapper
   dev/
     withDryRun.ts
     withMocks.ts
@@ -700,6 +1028,8 @@ examples/
   assistantFlow.ts       Interactive LLM assistant with branching
   observePlugin.ts       Tracing plugin example
   persistPlugin.ts       Checkpoint plugin example
+  clawneer.ts            Full ReAct agent with tool calling
+  streamingServer.ts     SSE streaming server example
 ```
 
 ## License
