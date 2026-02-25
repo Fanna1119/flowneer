@@ -3,10 +3,10 @@
 </div>
 
 <p>
-  <a href="https://www.npmjs.com/package/flowneer"><img src="https://badges.ws/npm/v/flowneer" /></a>
+  <a href="https://www.npmjs.com/package/flowneer"><img src="https://img.shields.io/npm/v/flowneer" /></a>
   <a href="https://deno.bundlejs.com/badge?q=flowneer"><img src="https://deno.bundlejs.com/badge?q=flowneer" /></a>
-  <a href="https://www.npmjs.com/package/flowneer"><img src="https://badges.ws/npm/l/flowneer" /></a>
-  <a href="https://www.npmjs.com/package/flowneer"><img src="https://badges.ws/npm/dt/flowneer" /></a>
+  <a href="https://www.npmjs.com/package/flowneer"><img src="https://img.shields.io/npm/l/flowneer" /></a>
+  <a href="https://www.npmjs.com/package/flowneer"><img src="https://img.shields.io/npm/d18m/flowneer" /></a>
   <a href="https://deepwiki.com/Fanna1119/flowneer"><img src="https://deepwiki.com/badge.svg" /></a>
 </p>
 
