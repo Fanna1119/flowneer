@@ -1,4 +1,6 @@
-# Flowneer
+<div align="center">
+    <img src="https://raw.githubusercontent.com/Fanna1119/flowneer/feature/extras/docs/images/flowneer_logo.png" width="500" height="auto" alt="Flowneer"/>
+</div>
 
 <p>
   <a href="https://www.npmjs.com/package/flowneer"><img src="https://badges.ws/npm/v/flowneer" /></a>

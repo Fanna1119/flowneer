@@ -302,6 +302,7 @@ function makeSSEStream(topic: string): ReadableStream<Uint8Array> {
 const PORT = Number(process.env.PORT ?? 3000);
 
 const server = Bun.serve({
+  idleTimeout: 60,
   port: PORT,
 
   fetch(req) {
