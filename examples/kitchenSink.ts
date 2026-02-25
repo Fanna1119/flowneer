@@ -148,14 +148,14 @@ const auditStore: AuditLogStore<ReportState> = {
 
 // ── Step functions ────────────────────────────────────────────────────────────
 
-// Step 0 — validate topic; goto "start" label if blank
+// Step 0 — validate topic; goto "start" anchor if blank
 function validateTopic(s: ReportState): string | void {
   const trimmed = s.topic.trim();
   if (!trimmed) {
-    console.log("  ⚠  Topic is blank — jumping back to start label demo");
+    console.log("  ⚠  Topic is blank — jumping back to start anchor demo");
     // In a real REPL you'd re-prompt; here we just fix it and stop the loop.
     s.topic = "quantum computing breakthroughs 2025";
-    return "→start"; // goto label — will run validateTopic again with a real topic
+    return "#start"; // goto anchor — will run validateTopic again with a real topic
   }
   console.log(`  ✔  Topic: "${trimmed}"`);
 }
@@ -362,7 +362,7 @@ const flow = new FlowBuilder<ReportState>()
     resetMs: 15_000,
   } satisfies CircuitBreakerOptions)
   .withTimeout(60_000) // global 60 s wall-clock cap per step
-  .withCycles(30) // max 30 label-jumps before throwing
+  .withCycles(30) // max 30 anchor-jumps before throwing
   .withStepLimit(200) // max 200 step executions total
 
   // ── Persistence ─────────────────────────────────────────────────────────
@@ -404,10 +404,10 @@ const flow = new FlowBuilder<ReportState>()
   // Steps
   // ──────────────────────────────────────────────────────────────────────
 
-  // Label — jump target: "→start" returned from validateTopic loops here
-  .label("start")
+  // Anchor — jump target: "#start" returned from validateTopic loops here
+  .anchor("start")
 
-  // Step 0 — validate; may goto "→start"
+  // Step 0 — validate; may goto "#start"
   .startWith(validateTopic)
 
   // Step 1 — fetch sources with retries + per-step timeout

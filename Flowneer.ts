@@ -67,8 +67,8 @@ interface ParallelStep<S, P extends Record<string, unknown>> {
   reducer?: (shared: S, drafts: S[]) => void;
 }
 
-interface LabelStep {
-  type: "label";
+interface AnchorStep {
+  type: "anchor";
   name: string;
 }
 
@@ -78,7 +78,7 @@ type Step<S, P extends Record<string, unknown>> =
   | LoopStep<S, P>
   | BatchStep<S, P>
   | ParallelStep<S, P>
-  | LabelStep;
+  | AnchorStep;
 
 // ───────────────────────────────────────────────────────────────────────────
 // Plugin system
@@ -319,11 +319,11 @@ export class FlowBuilder<
   }
 
   /**
-   * Insert a named label. Labels are no-op markers that can be jumped to
-   * from any `NodeFn` by returning `"→labelName"`.
+   * Insert a named anchor. Anchors are no-op markers that can be jumped to
+   * from any `NodeFn` by returning `"#anchorName"`.
    */
-  label(name: string): this {
-    this.steps.push({ type: "label", name });
+  anchor(name: string): this {
+    this.steps.push({ type: "anchor", name });
     return this;
   }
 
@@ -347,19 +347,19 @@ export class FlowBuilder<
     params: P,
     signal?: AbortSignal,
   ): Promise<void> {
-    // Pre-scan labels for goto support
+    // Pre-scan anchors for goto support
     const labels = new Map<string, number>();
     for (let j = 0; j < this.steps.length; j++) {
       const s = this.steps[j]!;
-      if (s.type === "label") labels.set(s.name, j);
+      if (s.type === "anchor") labels.set(s.name, j);
     }
 
     for (let i = 0; i < this.steps.length; i++) {
       signal?.throwIfAborted();
       const step = this.steps[i]!;
 
-      // Labels are pure markers — skip execution
-      if (step.type === "label") continue;
+      // Anchors are pure markers — skip execution
+      if (step.type === "anchor") continue;
 
       const meta: StepMeta = { index: i, type: step.type };
       try {
@@ -376,7 +376,7 @@ export class FlowBuilder<
                 step.delaySec,
                 () => step.fn(shared, params),
               );
-              if (typeof result === "string" && result.startsWith("→"))
+              if (typeof result === "string" && result.startsWith("#"))
                 gotoTarget = result.slice(1);
               break;
             }
@@ -397,7 +397,7 @@ export class FlowBuilder<
                 );
                 if (
                   typeof branchResult === "string" &&
-                  branchResult.startsWith("→")
+                  branchResult.startsWith("#")
                 )
                   gotoTarget = branchResult.slice(1);
               }
@@ -501,7 +501,7 @@ export class FlowBuilder<
         if (gotoTarget) {
           const target = labels.get(gotoTarget);
           if (target === undefined)
-            throw new Error(`goto target label "${gotoTarget}" not found`);
+            throw new Error(`goto target anchor "${gotoTarget}" not found`);
           i = target; // for-loop will i++ → first step after the label
         }
       } catch (err) {
@@ -521,10 +521,12 @@ export class FlowBuilder<
     return this;
   }
 
-  private _runSub(label: string, fn: () => Promise<void>): Promise<void> {
-    return fn().catch((err) => {
+  private async _runSub(label: string, fn: () => Promise<void>): Promise<void> {
+    try {
+      return await fn();
+    } catch (err) {
       throw new FlowError(label, err instanceof FlowError ? err.cause : err);
-    });
+    }
   }
 
   private async _retry(

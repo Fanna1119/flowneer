@@ -772,17 +772,17 @@ describe("afterFlow hook", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// label() + goto (→labelName)
-// ─────────────────────────────────────────────────────────────────────────────
+// anchor() + goto (#anchorName)
+// ───────────────────────────────────────────────────────────────────────────────
 
-describe("label + goto", () => {
-  test("label steps are skipped (no-op markers)", async () => {
+describe("anchor + goto", () => {
+  test("anchor steps are skipped (no-op markers)", async () => {
     const shared = { order: [] as string[] };
     await new FlowBuilder()
       .startWith(async (s: any) => {
         s.order.push("a");
       })
-      .label("mid")
+      .anchor("mid")
       .then(async (s: any) => {
         s.order.push("b");
       })
@@ -790,17 +790,17 @@ describe("label + goto", () => {
     expect(shared.order).toEqual(["a", "b"]);
   });
 
-  test("returning →label jumps to that label", async () => {
+  test("returning #anchor jumps to that anchor", async () => {
     const shared = { count: 0, log: [] as string[] };
     await new FlowBuilder()
       .startWith(async (s: any) => {
         s.log.push("start");
       })
-      .label("refine")
+      .anchor("refine")
       .then(async (s: any) => {
         s.count++;
         s.log.push(`refine-${s.count}`);
-        if (s.count < 3) return "→refine";
+        if (s.count < 3) return "#refine";
       })
       .then(async (s: any) => {
         s.log.push("done");
@@ -816,22 +816,22 @@ describe("label + goto", () => {
     ]);
   });
 
-  test("goto to unknown label throws", async () => {
-    const flow = new FlowBuilder().startWith(async () => "→nowhere");
+  test("goto to unknown anchor throws", async () => {
+    const flow = new FlowBuilder().startWith(async () => "#nowhere");
     await expect(flow.run({})).rejects.toThrow(
-      'goto target label "nowhere" not found',
+      'goto target anchor "nowhere" not found',
     );
   });
 
-  test("branch can return →label to jump", async () => {
+  test("branch can return #anchor to jump", async () => {
     const shared = { count: 0 };
     await new FlowBuilder()
-      .label("top")
+      .anchor("top")
       .then(async (s: any) => {
         s.count++;
       })
       .branch(async (s: any) => (s.count < 2 ? "loop" : "exit"), {
-        loop: async () => "→top",
+        loop: async () => "#top",
         exit: async () => {},
       })
       .run(shared);
