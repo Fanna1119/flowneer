@@ -194,6 +194,46 @@ export class FlowBuilder<
   private steps: Step<S, P>[] = [];
   private _hooksList: FlowHooks<S, P>[] = [];
 
+  /** Cached flat arrays of present hooks — invalidated whenever a hook is added. */
+  private _cachedHooks: {
+    beforeFlow: NonNullable<FlowHooks<S, P>["beforeFlow"]>[];
+    beforeStep: NonNullable<FlowHooks<S, P>["beforeStep"]>[];
+    wrapStep: NonNullable<FlowHooks<S, P>["wrapStep"]>[];
+    afterStep: NonNullable<FlowHooks<S, P>["afterStep"]>[];
+    wrapParallelFn: NonNullable<FlowHooks<S, P>["wrapParallelFn"]>[];
+    onError: NonNullable<FlowHooks<S, P>["onError"]>[];
+    afterFlow: NonNullable<FlowHooks<S, P>["afterFlow"]>[];
+  } | null = null;
+
+  private _getHooks() {
+    if (this._cachedHooks) return this._cachedHooks;
+    const hl = this._hooksList;
+    this._cachedHooks = {
+      beforeFlow: hl.map((h) => h.beforeFlow).filter(Boolean) as NonNullable<
+        FlowHooks<S, P>["beforeFlow"]
+      >[],
+      beforeStep: hl.map((h) => h.beforeStep).filter(Boolean) as NonNullable<
+        FlowHooks<S, P>["beforeStep"]
+      >[],
+      wrapStep: hl.map((h) => h.wrapStep).filter(Boolean) as NonNullable<
+        FlowHooks<S, P>["wrapStep"]
+      >[],
+      afterStep: hl.map((h) => h.afterStep).filter(Boolean) as NonNullable<
+        FlowHooks<S, P>["afterStep"]
+      >[],
+      wrapParallelFn: hl
+        .map((h) => h.wrapParallelFn)
+        .filter(Boolean) as NonNullable<FlowHooks<S, P>["wrapParallelFn"]>[],
+      onError: hl.map((h) => h.onError).filter(Boolean) as NonNullable<
+        FlowHooks<S, P>["onError"]
+      >[],
+      afterFlow: hl.map((h) => h.afterFlow).filter(Boolean) as NonNullable<
+        FlowHooks<S, P>["afterFlow"]
+      >[],
+    };
+    return this._cachedHooks;
+  }
+
   // -----------------------------------------------------------------------
   // Plugin registration
   // -----------------------------------------------------------------------
@@ -208,6 +248,7 @@ export class FlowBuilder<
   /** Register lifecycle hooks (called by plugin methods, not by consumers). */
   protected _setHooks(hooks: Partial<FlowHooks<S, P>>): void {
     this._hooksList.push(hooks);
+    this._cachedHooks = null; // invalidate cache
   }
 
   // -----------------------------------------------------------------------
@@ -330,11 +371,12 @@ export class FlowBuilder<
   /** Execute the flow. */
   async run(shared: S, params?: P, options?: RunOptions): Promise<void> {
     const p = (params ?? {}) as P;
-    for (const h of this._hooksList) await h.beforeFlow?.(shared, p);
+    const hooks = this._getHooks();
+    for (const h of hooks.beforeFlow) await h(shared, p);
     try {
       await this._execute(shared, p, options?.signal);
     } finally {
-      for (const h of this._hooksList) await h.afterFlow?.(shared, p);
+      for (const h of hooks.afterFlow) await h(shared, p);
     }
   }
 
@@ -347,11 +389,15 @@ export class FlowBuilder<
     params: P,
     signal?: AbortSignal,
   ): Promise<void> {
-    // Pre-scan anchors for goto support
+    const hooks = this._getHooks();
+
+    // Pre-scan anchors for goto support (skip when none present)
     const labels = new Map<string, number>();
-    for (let j = 0; j < this.steps.length; j++) {
-      const s = this.steps[j]!;
-      if (s.type === "anchor") labels.set(s.name, j);
+    if (this.steps.some((s) => s.type === "anchor")) {
+      for (let j = 0; j < this.steps.length; j++) {
+        const s = this.steps[j]!;
+        if (s.type === "anchor") labels.set(s.name, j);
+      }
     }
 
     for (let i = 0; i < this.steps.length; i++) {
@@ -363,8 +409,7 @@ export class FlowBuilder<
 
       const meta: StepMeta = { index: i, type: step.type };
       try {
-        for (const h of this._hooksList)
-          await h.beforeStep?.(meta, shared, params);
+        for (const h of hooks.beforeStep) await h(meta, shared, params);
 
         let gotoTarget: string | undefined;
 
@@ -425,9 +470,7 @@ export class FlowBuilder<
             }
 
             case "parallel": {
-              const pfnWrappers = this._hooksList
-                .map((h) => h.wrapParallelFn)
-                .filter((w): w is NonNullable<typeof w> => w != null);
+              const pfnWrappers = hooks.wrapParallelFn;
 
               if (step.reducer) {
                 // Safe mode: each fn gets its own shallow draft
@@ -482,28 +525,25 @@ export class FlowBuilder<
         const baseExec = (): Promise<void> =>
           timeoutMs! > 0 ? this._withTimeout(timeoutMs!, runBody) : runBody();
 
-        const wrappers = this._hooksList
-          .map((h) => h.wrapStep)
-          .filter((w): w is NonNullable<typeof w> => w != null);
+        const wrappers = hooks.wrapStep;
         const wrapped = wrappers.reduceRight<() => Promise<void>>(
           (next, wrap) => () => wrap(meta, next, shared, params),
           baseExec,
         );
         await wrapped();
 
-        for (const h of this._hooksList)
-          await h.afterStep?.(meta, shared, params);
+        for (const h of hooks.afterStep) await h(meta, shared, params);
 
         // Handle goto: jump to a labelled step
         if (gotoTarget) {
           const target = labels.get(gotoTarget);
           if (target === undefined)
             throw new Error(`goto target anchor "${gotoTarget}" not found`);
-          i = target; // for-loop will i++ → first step after the label
+          i = target; // for-loop will i++ → first step after the anchor
         }
       } catch (err) {
         if (err instanceof InterruptError) throw err;
-        for (const h of this._hooksList) h.onError?.(meta, err, shared, params);
+        for (const h of hooks.onError) h(meta, err, shared, params);
         if (err instanceof FlowError) throw err;
         const stepLabel =
           step.type === "fn" ? `step ${i}` : `${step.type} (step ${i})`;
@@ -531,6 +571,7 @@ export class FlowBuilder<
     delaySec: number,
     fn: () => Promise<any> | any,
   ): Promise<any> {
+    if (times === 1) return fn(); // fast path — no retry overhead
     while (true) {
       try {
         return await fn();
@@ -543,11 +584,15 @@ export class FlowBuilder<
   }
 
   private _withTimeout<T>(ms: number, fn: () => Promise<T>): Promise<T> {
+    let timer: ReturnType<typeof setTimeout>;
     return Promise.race([
-      fn(),
-      new Promise<T>((_, reject) =>
-        setTimeout(() => reject(new Error(`step timed out after ${ms}ms`)), ms),
-      ),
+      fn().finally(() => clearTimeout(timer)),
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`step timed out after ${ms}ms`)),
+          ms,
+        );
+      }),
     ]);
   }
 }
