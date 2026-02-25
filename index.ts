@@ -8,4 +8,6 @@ export type {
   StepMeta,
   FlowHooks,
   FlowneerPlugin,
+  Validator,
+  StreamEvent,
 } from "./Flowneer";

@@ -3,6 +3,25 @@
 // ---------------------------------------------------------------------------
 
 /**
+ * Generic validator interface — structurally compatible with Zod, ArkType,
+ * Valibot, or any custom implementation that exposes `.parse(input)`.
+ * Used by `withStructuredOutput` and output parsers.
+ */
+export interface Validator<T = unknown> {
+  parse(input: unknown): T;
+}
+
+/**
+ * Events yielded by `FlowBuilder.stream()`.
+ */
+export type StreamEvent<S = any> =
+  | { type: "step:before"; meta: StepMeta }
+  | { type: "step:after"; meta: StepMeta; shared: S }
+  | { type: "chunk"; data: unknown }
+  | { type: "error"; error: unknown }
+  | { type: "done" };
+
+/**
  * Function signature for all step logic.
  * Return an action string to route, or undefined/void to continue.
  */
@@ -388,6 +407,78 @@ export class FlowBuilder<
       await this._execute(shared, p, options?.signal);
     } finally {
       for (const h of hooks.afterFlow) await h(shared, p);
+    }
+  }
+
+  /**
+   * Execute the flow and yield `StreamEvent`s as an async generator.
+   *
+   * Events include `step:before`, `step:after`, `chunk` (from `emit()`),
+   * `error`, and `done`. This is an additive API — `.run()` is unchanged.
+   *
+   * @example
+   * for await (const event of flow.stream(shared)) {
+   *   if (event.type === "chunk") process.stdout.write(event.data);
+   * }
+   */
+  async *stream(
+    shared: S,
+    params?: P,
+    options?: RunOptions,
+  ): AsyncGenerator<StreamEvent<S>> {
+    // Simple promise-based queue for bridging push (hooks) → pull (generator)
+    type QueueItem = StreamEvent<S> | null; // null = sentinel for completion
+    const queue: QueueItem[] = [];
+    let resolve: (() => void) | null = null;
+
+    const push = (event: QueueItem) => {
+      queue.push(event);
+      if (resolve) {
+        resolve();
+        resolve = null;
+      }
+    };
+
+    const pull = (): Promise<void> =>
+      queue.length > 0
+        ? Promise.resolve()
+        : new Promise<void>((r) => {
+            resolve = r;
+          });
+
+    // Inject stream hooks
+    this._setHooks({
+      beforeStep: (meta: StepMeta) => {
+        push({ type: "step:before", meta });
+      },
+      afterStep: (meta: StepMeta, s: S) => {
+        push({ type: "step:after", meta, shared: s });
+      },
+    });
+
+    // Capture emit() calls by injecting __stream if not already set
+    const prevStream = (shared as any).__stream;
+    (shared as any).__stream = (chunk: unknown) => {
+      push({ type: "chunk", data: chunk });
+      if (typeof prevStream === "function") prevStream(chunk);
+    };
+
+    // Kick off the flow in the background
+    const flowDone = this.run(shared, params, options)
+      .catch((err) => push({ type: "error", error: err }))
+      .then(() => push(null));
+
+    // Yield events as they appear
+    while (true) {
+      await pull();
+      while (queue.length > 0) {
+        const event = queue.shift()!;
+        if (event === null) {
+          yield { type: "done" } as StreamEvent<S>;
+          return;
+        }
+        yield event;
+      }
     }
   }
 

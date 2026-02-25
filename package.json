@@ -14,7 +14,14 @@
     "./plugins/persistence": "./dist/plugins/persistence/index.js",
     "./plugins/llm": "./dist/plugins/llm/index.js",
     "./plugins/dev": "./dist/plugins/dev/index.js",
-    "./plugins/messaging": "./dist/plugins/messaging/index.js"
+    "./plugins/messaging": "./dist/plugins/messaging/index.js",
+    "./plugins/tools": "./dist/plugins/tools/index.js",
+    "./plugins/agent": "./dist/plugins/agent/index.js",
+    "./plugins/memory": "./dist/plugins/memory/index.js",
+    "./plugins/output": "./dist/plugins/output/index.js",
+    "./plugins/telemetry": "./dist/plugins/telemetry/index.js",
+    "./plugins/eval": "./dist/plugins/eval/index.js",
+    "./plugins/graph": "./dist/plugins/graph/index.js"
   },
   "sideEffects": false,
   "files": [
