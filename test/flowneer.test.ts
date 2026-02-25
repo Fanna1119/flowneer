@@ -225,6 +225,44 @@ describe("batch", () => {
       .run(s);
     expect(s.results).toEqual([]);
   });
+
+  test("nested batches with custom keys keep separate namespaces", async () => {
+    const s: {
+      groups: { name: string; members: string[] }[];
+      results: string[];
+      __group?: { name: string; members: string[] };
+      __member?: string;
+    } = {
+      groups: [
+        { name: "A", members: ["a1", "a2"] },
+        { name: "B", members: ["b1"] },
+      ],
+      results: [],
+    };
+    await new FlowBuilder<typeof s>()
+      .batch(
+        (s) => s.groups,
+        (b) =>
+          b
+            .startWith((s) => {
+              // outer batch item should be accessible throughout
+            })
+            .batch(
+              (s) => s.__group!.members,
+              (inner) =>
+                inner.startWith((s) => {
+                  // both outer and inner batch items are accessible
+                  s.results.push(`${s.__group!.name}:${s.__member!}`);
+                }),
+              { key: "__member" },
+            ),
+        { key: "__group" },
+      )
+      .run(s);
+    expect(s.results).toEqual(["A:a1", "A:a2", "B:b1"]);
+    expect(s.__group).toBeUndefined();
+    expect(s.__member).toBeUndefined();
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

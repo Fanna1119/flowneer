@@ -55,6 +55,7 @@ interface BatchStep<S, P extends Record<string, unknown>> {
   type: "batch";
   itemsExtractor: (shared: S, params: P) => Promise<any[]> | any[];
   processor: FlowBuilder<S, P>;
+  key: string;
 }
 
 interface ParallelStep<S, P extends Record<string, unknown>> {
@@ -261,15 +262,34 @@ export class FlowBuilder<
 
   /**
    * Append a batch step.
-   * Runs `processor` once per item extracted by `items`, setting `shared.__batchItem` each time.
+   * Runs `processor` once per item extracted by `items`, setting
+   * `shared[key]` each time (defaults to `"__batchItem"`).
+   *
+   * Use a unique `key` when nesting batches so each level has its own
+   * namespace:
+   * ```ts
+   * .batch(s => s.users, b => b
+   *   .startWith(s => { console.log(s.__batch_user); })
+   *   .batch(s => s.__batch_user.posts, p => p
+   *     .startWith(s => { console.log(s.__batch_post); })
+   *   , { key: '__batch_post' })
+   * , { key: '__batch_user' })
+   * ```
    */
   batch(
     items: (shared: S, params: P) => Promise<any[]> | any[],
     processor: (b: FlowBuilder<S, P>) => void,
+    options?: { key?: string },
   ): this {
     const inner = new FlowBuilder<S, P>();
     processor(inner);
-    this.steps.push({ type: "batch", itemsExtractor: items, processor: inner });
+    const key = options?.key ?? "__batchItem";
+    this.steps.push({
+      type: "batch",
+      itemsExtractor: items,
+      processor: inner,
+      key,
+    });
     return this;
   }
 
@@ -392,16 +412,18 @@ export class FlowBuilder<
               break;
 
             case "batch": {
-              const prev = (shared as any).__batchItem;
+              const k = step.key;
+              const prev = (shared as any)[k];
+              const hadKey = Object.prototype.hasOwnProperty.call(shared, k);
               const list = await step.itemsExtractor(shared, params);
               for (const item of list) {
-                (shared as any).__batchItem = item;
+                (shared as any)[k] = item;
                 await this._runSub(`batch (step ${i})`, () =>
                   step.processor._execute(shared, params, signal),
                 );
               }
-              if (prev === undefined) delete (shared as any).__batchItem;
-              else (shared as any).__batchItem = prev;
+              if (!hadKey) delete (shared as any)[k];
+              else (shared as any)[k] = prev;
               break;
             }
 
