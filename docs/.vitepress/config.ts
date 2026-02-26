@@ -4,6 +4,7 @@ import { defineConfig } from "vitepress";
 export default defineConfig({
   title: "Flowneer",
   description: "A tiny, zero-dependency fluent flow builder for TypeScript.",
+  base: "/flowneer/",
   themeConfig: {
     logo: "/images/flowneer_logo.png",
     nav: [
