@@ -24,6 +24,19 @@ export type StreamEvent<S = any> =
 /**
  * Function signature for all step logic.
  * Return an action string to route, or undefined/void to continue.
+ *
+ * Steps may also be declared as `async function*` generators — each `yield`
+ * forwards its value to the active stream consumer as a `chunk` event.
+ * The generator's final `return` value is still routed normally, so
+ * `return "#anchorName"` works exactly as it does in plain steps.
+ *
+ * @example
+ * .then(async function* (s) {
+ *   for await (const token of llmStream(s.prompt)) {
+ *     s.response += token;
+ *     yield token;           // → chunk event on flow.stream()
+ *   }
+ * })
  */
 export type NodeFn<
   S = any,
@@ -31,7 +44,12 @@ export type NodeFn<
 > = (
   shared: S,
   params: P,
-) => Promise<string | undefined | void> | string | undefined | void;
+) =>
+  | Promise<string | undefined | void>
+  | string
+  | undefined
+  | void
+  | AsyncGenerator<unknown, string | undefined | void, unknown>;
 
 /**
  * A numeric value or a function that computes it from the current shared state
@@ -518,13 +536,44 @@ export class FlowBuilder<
         const runBody = async () => {
           switch (step.type) {
             case "fn": {
+              // _retry calls the fn and returns the result. For async generator
+              // fns the body has NOT run yet — generators are lazy; calling the
+              // fn just constructs the iterator object.
               const result = await this._retry(
                 this._res(step.retries, 1, shared, params),
                 this._res(step.delaySec, 0, shared, params),
                 () => step.fn(shared, params),
               );
-              if (typeof result === "string" && result[0] === "#")
+
+              // Detect async (or sync) generators via their well-known symbol.
+              // Using the symbol is more robust than instanceof checks and works
+              // for any async iterable, not just native AsyncGenerators.
+              if (
+                result != null &&
+                typeof (result as any)[Symbol.asyncIterator] === "function"
+              ) {
+                // Manually drive the generator so we can:
+                //   • forward each yielded value to __stream as a chunk
+                //   • capture the final return value for #anchor routing
+                // (for…of discards the return value, so we call .next() directly)
+                const gen = result as AsyncGenerator<
+                  unknown,
+                  string | undefined | void,
+                  unknown
+                >;
+                let genResult = await gen.next();
+                while (!genResult.done) {
+                  (shared as any).__stream?.(genResult.value);
+                  genResult = await gen.next();
+                }
+                if (
+                  typeof genResult.value === "string" &&
+                  genResult.value[0] === "#"
+                )
+                  gotoTarget = genResult.value.slice(1);
+              } else if (typeof result === "string" && result[0] === "#") {
                 gotoTarget = result.slice(1);
+              }
               break;
             }
 

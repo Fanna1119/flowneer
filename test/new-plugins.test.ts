@@ -123,6 +123,121 @@ describe(".stream()", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Generator steps (async function*)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("generator steps (async function*)", () => {
+  test("yielded values arrive as chunk events via flow.stream()", async () => {
+    const chunks: unknown[] = [];
+
+    const flow = new FlowBuilder<{ value: number }>().startWith(
+      async function* (s) {
+        yield "token-a";
+        yield "token-b";
+        s.value = 1;
+      },
+    );
+
+    const s = { value: 0 };
+    for await (const e of flow.stream(s)) {
+      if (e.type === "chunk") chunks.push(e.data);
+    }
+
+    expect(chunks).toEqual(["token-a", "token-b"]);
+    expect(s.value).toBe(1); // state mutation still applies
+  });
+
+  test("generator step mixed with plain steps all produce step events", async () => {
+    const types: string[] = [];
+
+    const flow = new FlowBuilder<{ log: string[] }>()
+      .startWith(async (s) => {
+        s.log.push("plain-before");
+      })
+      .then(async function* (s) {
+        yield "chunk-1";
+        s.log.push("gen");
+        yield "chunk-2";
+      })
+      .then(async (s) => {
+        s.log.push("plain-after");
+      });
+
+    const s = { log: [] as string[] };
+    const chunks: unknown[] = [];
+
+    for await (const e of flow.stream(s)) {
+      types.push(e.type);
+      if (e.type === "chunk") chunks.push(e.data);
+    }
+
+    expect(chunks).toEqual(["chunk-1", "chunk-2"]);
+    expect(s.log).toEqual(["plain-before", "gen", "plain-after"]);
+    // 3 steps × (before + after) + done = 7 events plus 2 chunks = 9 total
+    expect(types.filter((t) => t === "step:before").length).toBe(3);
+    expect(types.filter((t) => t === "step:after").length).toBe(3);
+    expect(types.at(-1)).toBe("done");
+  });
+
+  test("generator step can return #anchor for routing", async () => {
+    const log: string[] = [];
+
+    const flow = new FlowBuilder<{ visits: number }>()
+      .startWith((s) => {
+        s.visits = 0;
+      })
+      .anchor("top")
+      .then(async function* (s) {
+        s.visits++;
+        yield `visit-${s.visits}`;
+        if (s.visits < 3) return "#top";
+      })
+      .then((s) => {
+        log.push(`done after ${s.visits} visits`);
+      });
+
+    const chunks: unknown[] = [];
+    const s = { visits: 0 };
+    for await (const e of flow.stream(s)) {
+      if (e.type === "chunk") chunks.push(e.data);
+    }
+
+    expect(s.visits).toBe(3);
+    expect(chunks).toEqual(["visit-1", "visit-2", "visit-3"]);
+    expect(log).toEqual(["done after 3 visits"]);
+  });
+
+  test("generator step without a stream consumer still mutates state correctly", async () => {
+    const flow = new FlowBuilder<{ total: number }>().startWith(
+      async function* (s) {
+        for (let i = 1; i <= 4; i++) {
+          s.total += i;
+          yield i;
+        }
+      },
+    );
+
+    const s = { total: 0 };
+    await flow.run(s); // plain run() — no consumer, chunks are silently dropped
+    expect(s.total).toBe(10); // 1+2+3+4
+  });
+
+  test("error thrown inside a generator propagates as flow error", async () => {
+    const flow = new FlowBuilder().startWith(async function* () {
+      yield "before-error";
+      throw new Error("gen-boom");
+    });
+
+    const events: StreamEvent[] = [];
+    for await (const e of flow.stream({})) events.push(e);
+
+    const errEvent = events.find((e) => e.type === "error");
+    expect(errEvent).toBeDefined();
+    expect(events.at(-1)?.type).toBe("done");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // withStructuredOutput
 // ─────────────────────────────────────────────────────────────────────────────
 
