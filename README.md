@@ -12,6 +12,9 @@
 
 A tiny, zero-dependency fluent flow builder for TypeScript. Chain steps, branch on conditions, loop, batch-process, and run tasks in parallel — all through a single `FlowBuilder` class. Extend it with plugins for tool calling, ReAct agent loops, human-in-the-loop, memory, structured output, streaming, graph-based flow composition, eval, and more.
 
+
+>Flowneer is currently under heavy development with ongoing pattern exploration and architectural refinement. Breaking changes are expected frequently, potentially on a daily basis, as the core design is actively evolving.
+
 ## Install
 
 ```bash
