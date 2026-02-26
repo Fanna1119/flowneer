@@ -1,13 +1,13 @@
 {
   "name": "flowneer",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Zero-dependency fluent flow builder for AI agents",
   "license": "MIT",
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
   "exports": {
-    ".": "./dist/index.js",
+    ".": "./dist/src/index.js",
     "./plugins": "./dist/plugins/index.js",
     "./plugins/observability": "./dist/plugins/observability/index.js",
     "./plugins/resilience": "./dist/plugins/resilience/index.js",

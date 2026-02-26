@@ -3,6 +3,7 @@ import { defineConfig } from "tsup";
 export default defineConfig({
   entry: [
     "index.ts",
+    "src/index.ts",
     "plugins/index.ts",
     "plugins/observability/index.ts",
     "plugins/resilience/index.ts",

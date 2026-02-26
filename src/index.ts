@@ -1,11 +1,9 @@
 // ---------------------------------------------------------------------------
-// Flowneer — barrel re-export
-//
-// The implementation has been split into src/ for maintainability.
-// This file preserves the original import path for all consumers.
+// Flowneer — src barrel
 // ---------------------------------------------------------------------------
 
-export { FlowBuilder, FlowError, InterruptError } from "./src";
+export { FlowBuilder } from "./FlowBuilder";
+export { FlowError, InterruptError } from "./errors";
 
 export type {
   Validator,
@@ -17,4 +15,4 @@ export type {
   StepMeta,
   FlowHooks,
   FlowneerPlugin,
-} from "./src";
+} from "./types";
