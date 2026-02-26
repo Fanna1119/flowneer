@@ -5,12 +5,14 @@
 //   1. FlowBuilder.stream() async generator instead of the withStream plugin
 //   2. async function* step declarations — each `yield` becomes a chunk event
 //      received by the flow.stream() consumer, no emit() helper needed
+//   3. generateStream() yields tokens one-by-one so LLM responses are pushed
+//      to clients as they arrive, not after the full response is buffered
 //
 // StreamEvent types yielded by flow.stream():
 //
 //   step:before  — fires before every step (carries StepMeta)
 //   step:after   — fires after every step (carries StepMeta + shared state)
-//   chunk        — carries values yielded by generator steps
+//   chunk        — carries a StreamChunk yielded by a generator step
 //   error        — carries a thrown error
 //   done         — always the last event
 //
@@ -42,7 +44,8 @@ export type StreamChunk =
   | { type: "section:done"; index: number; title: string; wordCount: number }
   | { type: "refine"; round: number; score: number }
   | { type: "summary"; text: string }
-  | { type: "done"; totalMs: number; score: number };
+  | { type: "done"; totalMs: number; score: number }
+  | { type: "token"; text: string };
 
 // ── Shared state ──────────────────────────────────────────────────────────────
 
@@ -65,14 +68,33 @@ function jitter(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-async function generate(prompt: string): Promise<string> {
+/**
+ * Streams response tokens one-by-one.
+ * With OPENAI_API_KEY set: real streaming via the Chat Completions API.
+ * Without it: simulates word-by-word output with jittered delays.
+ */
+async function* generateStream(prompt: string): AsyncGenerator<string> {
   if (process.env.OPENAI_API_KEY) {
-    const { callLlm } = await import("../utils/callLlm");
-    return callLlm(prompt);
+    const { OpenAI } = await import("openai");
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const stream = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      stream: true,
+    });
+    for await (const chunk of stream) {
+      const token = chunk.choices[0]?.delta?.content ?? "";
+      if (token) yield token;
+    }
+    return;
   }
-  await Bun.sleep(jitter(120, 350));
+  // Simulate word-by-word output
   const seed = prompt.slice(0, 40).replace(/\W/g, " ").trim();
-  return `[simulated output for: "${seed}…"]`;
+  const words = `[simulated output for: "${seed}…"]`.split(" ");
+  for (let wi = 0; wi < words.length; wi++) {
+    await Bun.sleep(jitter(30, 80));
+    yield (wi > 0 ? " " : "") + words[wi]!;
+  }
 }
 
 // ── Step functions ────────────────────────────────────────────────────────────
@@ -84,9 +106,13 @@ async function* validateAndStart(s: DocState) {
 }
 
 async function* splitIntoSections(s: DocState) {
-  const raw = await generate(
+  let raw = "";
+  for await (const token of generateStream(
     `List 4 section titles for a short document about: "${s.topic}". One per line, no numbering.`,
-  );
+  )) {
+    raw += token;
+    yield { type: "token", text: token } as StreamChunk;
+  }
 
   s.sections = raw
     .split(/\n+/)
@@ -116,9 +142,13 @@ async function* analyseSection(s: DocState) {
 
   yield { type: "section:begin", index: idx, title } as StreamChunk;
 
-  const body = await generate(
+  let body = "";
+  for await (const token of generateStream(
     `Write two sentences about "${title}" in the context of "${s.topic}".`,
-  );
+  )) {
+    body += token;
+    yield { type: "token", text: token } as StreamChunk;
+  }
   s.analysed.push({ title, body });
 
   yield {
@@ -132,9 +162,13 @@ async function* analyseSection(s: DocState) {
 async function* refineAndScore(s: DocState) {
   s.refinementRound++;
 
-  const improved = await generate(
+  let improved = "";
+  for await (const token of generateStream(
     `Improve this draft for clarity and depth (one paragraph):\n${s.analysed.map((a) => a.body).join(" ")}`,
-  );
+  )) {
+    improved += token;
+    yield { type: "token", text: token } as StreamChunk;
+  }
 
   if (s.analysed.length > 0) {
     s.analysed[s.analysed.length - 1]!.body = improved;
@@ -150,9 +184,13 @@ async function* refineAndScore(s: DocState) {
 }
 
 async function* summarise(s: DocState) {
-  s.summary = await generate(
+  s.summary = "";
+  for await (const token of generateStream(
     `Write a one-paragraph executive summary of "${s.topic}" covering:\n${s.analysed.map((a) => `- ${a.title}`).join("\n")}`,
-  );
+  )) {
+    s.summary += token;
+    yield { type: "token", text: token } as StreamChunk;
+  }
   yield { type: "summary", text: s.summary } as StreamChunk;
 }
 
