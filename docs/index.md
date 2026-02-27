@@ -2,7 +2,8 @@
 layout: home
 
 hero:
-  name: "Flowneer"
+  # name: "Flowneer"
+  image: /flowneer_logo.png
   text: "Fluent flow builder for TypeScript"
   tagline: Zero-dependency. Composable. Plugin-driven. Built for LLM pipelines and beyond.
   actions:
