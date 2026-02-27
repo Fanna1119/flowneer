@@ -1,5 +1,5 @@
 <div align="center">
-    <img src="https://raw.githubusercontent.com/Fanna1119/flowneer/feature/extras/docs/public/flowneer_logo.png" width="500" height="auto" alt="Flowneer"/>
+    <img src="https://github.com/Fanna1119/flowneer/blob/main/docs/public/flowneer_logo.png" width="500" height="auto" alt="Flowneer"/>
 </div>
 
 <p>
