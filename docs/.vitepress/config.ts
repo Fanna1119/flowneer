@@ -6,7 +6,7 @@ export default defineConfig({
   description: "A tiny, zero-dependency fluent flow builder for TypeScript.",
   base: "/flowneer/",
   themeConfig: {
-    logo: "/images/flowneer_logo.png",
+    // logo: "/flowneer_logo.png",
     nav: [
       { text: "Home", link: "/" },
       { text: "Core", link: "/core/getting-started" },

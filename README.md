@@ -1,5 +1,5 @@
 <div align="center">
-    <img src="https://github.com/Fanna1119/flowneer/blob/main/docs/images/flowneer_logo.png" width="500" height="auto" alt="Flowneer"/>
+    <img src="https://github.com/Fanna1119/flowneer/blob/main/docs/public/flowneer_logo.png" width="500" height="auto" alt="Flowneer"/>
 </div>
 
 <p>
@@ -8,12 +8,12 @@
   <a href="https://www.npmjs.com/package/flowneer"><img src="https://img.shields.io/npm/l/flowneer" /></a>
   <a href="https://www.npmjs.com/package/flowneer"><img src="https://img.shields.io/npm/d18m/flowneer" /></a>
   <a href="https://deepwiki.com/Fanna1119/flowneer"><img src="https://deepwiki.com/badge.svg" /></a>
+  <a href="https://github.com/Fanna1119/flowneer"><img src="https://img.shields.io/badge/GitHub-%23121011.svg?logo=github&logoColor=white)" /></a>
 </p>
 
 A tiny, zero-dependency fluent flow builder for TypeScript. Chain steps, branch on conditions, loop, batch-process, and run tasks in parallel — all through a single `FlowBuilder` class. Extend it with plugins for tool calling, ReAct agent loops, human-in-the-loop, memory, structured output, streaming, graph-based flow composition, eval, and more.
 
-
->Flowneer is currently under heavy development with ongoing pattern exploration and architectural refinement. Breaking changes are expected frequently, potentially on a daily basis, as the core design is actively evolving.
+> Flowneer is currently under heavy development with ongoing pattern exploration and architectural refinement. Breaking changes are expected frequently, potentially on a daily basis, as the core design is actively evolving.
 
 ## Install
 
