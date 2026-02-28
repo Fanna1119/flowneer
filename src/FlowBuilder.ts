@@ -27,7 +27,7 @@ export class FlowBuilder<
   S = any,
   P extends Record<string, unknown> = Record<string, unknown>,
 > {
-  private steps: Step<S, P>[] = [];
+  protected steps: Step<S, P>[] = [];
   private _hooksList: FlowHooks<S, P>[] = [];
 
   /** Cached flat arrays of present hooks — invalidated whenever a hook is added. */
@@ -100,6 +100,30 @@ export class FlowBuilder<
   /** Append a sequential step. */
   then(fn: NodeFn<S, P>, options?: NodeOptions<S, P>): this {
     return this._addFn(fn, options);
+  }
+
+  /**
+   * Splice all steps from a `Fragment` into this flow at the current position.
+   *
+   * Fragments are reusable partial flows created with the `fragment()` factory.
+   * Steps are copied by reference (same semantics as `loop` / `batch` inners).
+   *
+   * @example
+   * ```ts
+   * const enrich = fragment<S>()
+   *   .then(fetchUser)
+   *   .then(enrichProfile);
+   *
+   * new FlowBuilder<S>()
+   *   .then(init)
+   *   .add(enrich)
+   *   .then(finalize)
+   *   .run(shared);
+   * ```
+   */
+  add(frag: FlowBuilder<S, P>): this {
+    for (const step of frag.steps) this.steps.push(step);
+    return this;
   }
 
   /**

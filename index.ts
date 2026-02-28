@@ -1,4 +1,10 @@
-export { FlowBuilder, FlowError, InterruptError } from "./Flowneer";
+export {
+  FlowBuilder,
+  Fragment,
+  fragment,
+  FlowError,
+  InterruptError,
+} from "./Flowneer";
 
 export type {
   NodeFn,

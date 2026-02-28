@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 
 export { FlowBuilder } from "./FlowBuilder";
+export { Fragment, fragment } from "./Fragment";
 export { FlowError, InterruptError } from "./errors";
 
 export type {

@@ -5,7 +5,13 @@
 // This file preserves the original import path for all consumers.
 // ---------------------------------------------------------------------------
 
-export { FlowBuilder, FlowError, InterruptError } from "./src";
+export {
+  FlowBuilder,
+  Fragment,
+  fragment,
+  FlowError,
+  InterruptError,
+} from "./src";
 
 export type {
   Validator,

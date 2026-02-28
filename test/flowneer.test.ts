@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { FlowBuilder, FlowError, InterruptError } from "../Flowneer";
+import {
+  FlowBuilder,
+  FlowError,
+  InterruptError,
+  Fragment,
+  fragment,
+} from "../Flowneer";
 import type { FlowneerPlugin, StepMeta } from "../Flowneer";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -948,5 +954,129 @@ describe("InterruptError", () => {
       expect(err instanceof InterruptError).toBe(true);
       expect((err as InterruptError).savedShared).toEqual({ state: 42 });
     }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fragment / .add()
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Fragment / .add()", () => {
+  test("fragment() returns a Fragment instance", () => {
+    const frag = fragment();
+    expect(frag).toBeInstanceOf(Fragment);
+    expect(frag).toBeInstanceOf(FlowBuilder);
+  });
+
+  test("splices fragment steps into the flow in order", async () => {
+    const order: number[] = [];
+
+    const middle = fragment<{ order: number[] }>()
+      .then(async (s) => {
+        s.order.push(2);
+      })
+      .then(async (s) => {
+        s.order.push(3);
+      });
+
+    const shared = { order };
+    await new FlowBuilder<typeof shared>()
+      .then(async (s) => {
+        s.order.push(1);
+      })
+      .add(middle)
+      .then(async (s) => {
+        s.order.push(4);
+      })
+      .run(shared);
+
+    expect(order).toEqual([1, 2, 3, 4]);
+  });
+
+  test("can add multiple fragments", async () => {
+    const order: string[] = [];
+
+    const a = fragment()
+      .then(async () => {
+        order.push("a1");
+      })
+      .then(async () => {
+        order.push("a2");
+      });
+
+    const b = fragment().then(async () => {
+      order.push("b1");
+    });
+
+    await new FlowBuilder()
+      .then(async () => {
+        order.push("start");
+      })
+      .add(a)
+      .add(b)
+      .then(async () => {
+        order.push("end");
+      })
+      .run({});
+
+    expect(order).toEqual(["start", "a1", "a2", "b1", "end"]);
+  });
+
+  test("fragment with loop spliced correctly", async () => {
+    const shared = { count: 0 };
+
+    const loopFrag = fragment<typeof shared>().loop(
+      (s) => s.count < 3,
+      (b) =>
+        b.then(async (s) => {
+          s.count++;
+        }),
+    );
+
+    await new FlowBuilder<typeof shared>().add(loopFrag).run(shared);
+
+    expect(shared.count).toBe(3);
+  });
+
+  test("fragment with batch spliced correctly", async () => {
+    const shared = { items: [10, 20, 30], results: [] as number[] };
+
+    const batchFrag = fragment<typeof shared>().batch(
+      (s) => s.items,
+      (b) =>
+        b.then(async (s) => {
+          s.results.push((s as any).__batchItem * 2);
+        }),
+    );
+
+    await new FlowBuilder<typeof shared>().add(batchFrag).run(shared);
+
+    expect(shared.results).toEqual([20, 40, 60]);
+  });
+
+  test("same fragment can be reused in multiple flows", async () => {
+    const frag = fragment().then(async (s: any) => {
+      s.x = (s.x ?? 0) + 1;
+    });
+
+    const s1 = { x: 0 };
+    const s2 = { x: 10 };
+
+    await new FlowBuilder().add(frag).run(s1);
+    await new FlowBuilder().add(frag).run(s2);
+
+    expect(s1.x).toBe(1);
+    expect(s2.x).toBe(11);
+  });
+
+  test("fragment.run() throws", async () => {
+    const frag = fragment().then(async () => {});
+    expect(frag.run({})).rejects.toThrow("Fragment cannot be run directly");
+  });
+
+  test("fragment.stream() throws", async () => {
+    const frag = fragment().then(async () => {});
+    const gen = frag.stream({});
+    expect(gen.next()).rejects.toThrow("Fragment cannot be streamed directly");
   });
 });
