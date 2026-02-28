@@ -263,6 +263,61 @@ await new FlowBuilder<RefineState>()
 
 > **Tip:** Pair with [`withCycles`](#withcycles) to cap the maximum number of jumps.
 
+### `fragment()` and `.add(fragment)`
+
+Fragments are reusable partial flows — composable step chains that can be spliced into any `FlowBuilder`. Think of them like Zod partials for flows.
+
+Create a fragment with the `fragment()` factory, chain steps on it, then embed it with `.add()`:
+
+```typescript
+import { FlowBuilder, fragment } from "flowneer";
+
+interface State {
+  input: string;
+  enriched: boolean;
+  summary: string;
+}
+
+// Define reusable fragments
+const enrich = fragment<State>()
+  .then(async (s) => {
+    s.enriched = true;
+  })
+  .then(async (s) => {
+    s.input = s.input.trim();
+  });
+
+const summarise = fragment<State>().loop(
+  (s) => !s.summary,
+  (b) =>
+    b.then(async (s) => {
+      s.summary = s.input.slice(0, 10);
+    }),
+);
+
+// Compose into a full flow
+await new FlowBuilder<State>()
+  .startWith(async (s) => {
+    s.input = "  hello world  ";
+  })
+  .add(enrich) // splices enrich's steps inline
+  .add(summarise) // splices summarise's steps inline
+  .then(async (s) => console.log(s.summary))
+  .run({ input: "", enriched: false, summary: "" });
+// → hello worl
+```
+
+Fragments support all step types — `.then()`, `.loop()`, `.batch()`, `.branch()`, `.parallel()`, `.anchor()`. They **cannot** be run directly — calling `.run()` or `.stream()` on a fragment throws.
+
+The same fragment can be reused across multiple flows:
+
+```typescript
+const validate = fragment<State>().then(checkInput).then(sanitize);
+
+const flowA = new FlowBuilder<State>().add(validate).then(handleA);
+const flowB = new FlowBuilder<State>().add(validate).then(handleB);
+```
+
 ## using with `withCycles` plugin
 
 `withCycles` guards against infinite anchor-jump loops. Each call registers one limit; multiple calls stack.
