@@ -12,8 +12,143 @@ import type {
   StepMeta,
   StreamEvent,
 } from "./types";
-import type { Step } from "./steps";
+import type { ParallelStep, Step } from "./steps";
 import { FlowError, InterruptError } from "./errors";
+
+// ---------------------------------------------------------------------------
+// Hook cache
+// ---------------------------------------------------------------------------
+
+type ResolvedHooks<S, P extends Record<string, unknown>> = {
+  beforeFlow: NonNullable<FlowHooks<S, P>["beforeFlow"]>[];
+  beforeStep: NonNullable<FlowHooks<S, P>["beforeStep"]>[];
+  wrapStep: NonNullable<FlowHooks<S, P>["wrapStep"]>[];
+  afterStep: NonNullable<FlowHooks<S, P>["afterStep"]>[];
+  wrapParallelFn: NonNullable<FlowHooks<S, P>["wrapParallelFn"]>[];
+  onError: NonNullable<FlowHooks<S, P>["onError"]>[];
+  afterFlow: NonNullable<FlowHooks<S, P>["afterFlow"]>[];
+};
+
+function buildHookCache<S, P extends Record<string, unknown>>(
+  list: FlowHooks<S, P>[],
+): ResolvedHooks<S, P> {
+  const pick = <K extends keyof FlowHooks<S, P>>(key: K) =>
+    list.map((h) => h[key]).filter(Boolean) as NonNullable<
+      FlowHooks<S, P>[K]
+    >[];
+  return {
+    beforeFlow: pick("beforeFlow"),
+    beforeStep: pick("beforeStep"),
+    wrapStep: pick("wrapStep"),
+    afterStep: pick("afterStep"),
+    wrapParallelFn: pick("wrapParallelFn"),
+    onError: pick("onError"),
+    afterFlow: pick("afterFlow"),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Pure utility functions
+// ---------------------------------------------------------------------------
+
+function resolveNumber<S, P extends Record<string, unknown>>(
+  val: NumberOrFn<S, P> | undefined,
+  fallback: number,
+  shared: S,
+  params: P,
+): number {
+  if (val === undefined) return fallback;
+  return typeof val === "function" ? val(shared, params) : val;
+}
+
+async function retry<T>(
+  times: number,
+  delaySec: number,
+  fn: () => Promise<T> | T,
+): Promise<T> {
+  if (times === 1) return fn(); // fast path
+  while (true) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (!--times) throw err;
+      if (delaySec > 0)
+        await new Promise((r) => setTimeout(r, delaySec * 1000));
+    }
+  }
+}
+
+function withTimeout<T>(ms: number, fn: () => Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  return Promise.race([
+    fn().finally(() => clearTimeout(timer)),
+    new Promise<T>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`step timed out after ${ms}ms`)),
+        ms,
+      );
+    }),
+  ]);
+}
+
+// ---------------------------------------------------------------------------
+// Fn-step helpers
+// ---------------------------------------------------------------------------
+
+function isAnchorTarget(value: unknown): value is string {
+  return typeof value === "string" && value[0] === "#";
+}
+
+/**
+ * Drive a fn step's result to completion.
+ *
+ * - If the result is an async generator, iterates it manually so each yielded
+ *   value is forwarded to `__stream` and the final return value can route.
+ * - Otherwise treats a `"#anchor"` string return as a goto target.
+ *
+ * Returns the anchor name (without `#`) to jump to, or `undefined`.
+ */
+async function runFnResult<S>(
+  result: unknown,
+  shared: S,
+): Promise<string | undefined> {
+  if (
+    result != null &&
+    typeof (result as any)[Symbol.asyncIterator] === "function"
+  ) {
+    // Manually drive the generator so we can:
+    //   • forward each yielded value to __stream as a chunk
+    //   • capture the final return value for #anchor routing
+    // (for…of discards the return value, so we call .next() directly)
+    const gen = result as AsyncGenerator<
+      unknown,
+      string | undefined | void,
+      unknown
+    >;
+    let next = await gen.next();
+    while (!next.done) {
+      (shared as any).__stream?.(next.value);
+      next = await gen.next();
+    }
+    return isAnchorTarget(next.value) ? next.value.slice(1) : undefined;
+  }
+  return isAnchorTarget(result) ? result.slice(1) : undefined;
+}
+
+function buildAnchorMap<S, P extends Record<string, unknown>>(
+  steps: Step<S, P>[],
+): Map<string, number> {
+  const map = new Map<string, number>();
+  for (let i = 0; i < steps.length; i++) {
+    const s = steps[i]!;
+    if (s.type === "anchor") map.set(s.name, i);
+  }
+  return map;
+}
+
+// ---------------------------------------------------------------------------
+// FlowBuilder
+// ---------------------------------------------------------------------------
 
 /**
  * Fluent builder for composable flows.
@@ -28,51 +163,23 @@ export class FlowBuilder<
   P extends Record<string, unknown> = Record<string, unknown>,
 > {
   protected steps: Step<S, P>[] = [];
+
   private _hooksList: FlowHooks<S, P>[] = [];
+  private _hooksCache: ResolvedHooks<S, P> | null = null;
 
-  /** Cached flat arrays of present hooks — invalidated whenever a hook is added. */
-  private _cachedHooks: {
-    beforeFlow: NonNullable<FlowHooks<S, P>["beforeFlow"]>[];
-    beforeStep: NonNullable<FlowHooks<S, P>["beforeStep"]>[];
-    wrapStep: NonNullable<FlowHooks<S, P>["wrapStep"]>[];
-    afterStep: NonNullable<FlowHooks<S, P>["afterStep"]>[];
-    wrapParallelFn: NonNullable<FlowHooks<S, P>["wrapParallelFn"]>[];
-    onError: NonNullable<FlowHooks<S, P>["onError"]>[];
-    afterFlow: NonNullable<FlowHooks<S, P>["afterFlow"]>[];
-  } | null = null;
+  // -------------------------------------------------------------------------
+  // Hooks & plugins
+  // -------------------------------------------------------------------------
 
-  private _getHooks() {
-    if (this._cachedHooks) return this._cachedHooks;
-    const hl = this._hooksList;
-    this._cachedHooks = {
-      beforeFlow: hl.map((h) => h.beforeFlow).filter(Boolean) as NonNullable<
-        FlowHooks<S, P>["beforeFlow"]
-      >[],
-      beforeStep: hl.map((h) => h.beforeStep).filter(Boolean) as NonNullable<
-        FlowHooks<S, P>["beforeStep"]
-      >[],
-      wrapStep: hl.map((h) => h.wrapStep).filter(Boolean) as NonNullable<
-        FlowHooks<S, P>["wrapStep"]
-      >[],
-      afterStep: hl.map((h) => h.afterStep).filter(Boolean) as NonNullable<
-        FlowHooks<S, P>["afterStep"]
-      >[],
-      wrapParallelFn: hl
-        .map((h) => h.wrapParallelFn)
-        .filter(Boolean) as NonNullable<FlowHooks<S, P>["wrapParallelFn"]>[],
-      onError: hl.map((h) => h.onError).filter(Boolean) as NonNullable<
-        FlowHooks<S, P>["onError"]
-      >[],
-      afterFlow: hl.map((h) => h.afterFlow).filter(Boolean) as NonNullable<
-        FlowHooks<S, P>["afterFlow"]
-      >[],
-    };
-    return this._cachedHooks;
+  private _hooks(): ResolvedHooks<S, P> {
+    return (this._hooksCache ??= buildHookCache(this._hooksList));
   }
 
-  // -----------------------------------------------------------------------
-  // Plugin registration
-  // -----------------------------------------------------------------------
+  /** Register lifecycle hooks (called by plugin methods, not by consumers). */
+  protected _setHooks(hooks: Partial<FlowHooks<S, P>>): void {
+    this._hooksList.push(hooks);
+    this._hooksCache = null;
+  }
 
   /** Register a plugin — copies its methods onto `FlowBuilder.prototype`. */
   static use(plugin: FlowneerPlugin): void {
@@ -81,15 +188,9 @@ export class FlowBuilder<
     }
   }
 
-  /** Register lifecycle hooks (called by plugin methods, not by consumers). */
-  protected _setHooks(hooks: Partial<FlowHooks<S, P>>): void {
-    this._hooksList.push(hooks);
-    this._cachedHooks = null; // invalidate cache
-  }
-
-  // -----------------------------------------------------------------------
-  // Public API
-  // -----------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // Builder API
+  // -------------------------------------------------------------------------
 
   /** Set the first step, resetting any prior chain. */
   startWith(fn: NodeFn<S, P>, options?: NodeOptions<S, P>): this {
@@ -128,7 +229,7 @@ export class FlowBuilder<
 
   /**
    * Append a routing step.
-   * `router` returns a key; the matching branch flow executes, then the chain continues.
+   * `router` returns a key; the matching branch executes, then the chain continues.
    */
   branch(
     router: NodeFn<S, P>,
@@ -183,12 +284,11 @@ export class FlowBuilder<
   ): this {
     const inner = new FlowBuilder<S, P>();
     processor(inner);
-    const key = options?.key ?? "__batchItem";
     this.steps.push({
       type: "batch",
       itemsExtractor: items,
       processor: inner,
-      key,
+      key: options?.key ?? "__batchItem",
     });
     return this;
   }
@@ -226,10 +326,14 @@ export class FlowBuilder<
     return this;
   }
 
+  // -------------------------------------------------------------------------
+  // Execution API
+  // -------------------------------------------------------------------------
+
   /** Execute the flow. */
   async run(shared: S, params?: P, options?: RunOptions): Promise<void> {
     const p = (params ?? {}) as P;
-    const hooks = this._getHooks();
+    const hooks = this._hooks();
     for (const h of hooks.beforeFlow) await h(shared, p);
     try {
       await this._execute(shared, p, options?.signal);
@@ -254,51 +358,43 @@ export class FlowBuilder<
     params?: P,
     options?: RunOptions,
   ): AsyncGenerator<StreamEvent<S>> {
-    // Simple promise-based queue for bridging push (hooks) → pull (generator)
-    type QueueItem = StreamEvent<S> | null; // null = sentinel for completion
-    const queue: QueueItem[] = [];
-    let resolve: (() => void) | null = null;
+    // Promise-based queue for bridging push (hooks) → pull (generator)
+    const queue: (StreamEvent<S> | null)[] = [];
+    let notify: (() => void) | null = null;
 
-    const push = (event: QueueItem) => {
+    const push = (event: StreamEvent<S> | null) => {
       queue.push(event);
-      if (resolve) {
-        resolve();
-        resolve = null;
-      }
+      notify?.();
+      notify = null;
     };
 
-    const pull = (): Promise<void> =>
+    const drain = (): Promise<void> =>
       queue.length > 0
         ? Promise.resolve()
         : new Promise<void>((r) => {
-            resolve = r;
+            notify = r;
           });
 
-    // Inject stream hooks
+    // Wire beforeStep / afterStep into the event queue
     this._setHooks({
-      beforeStep: (meta: StepMeta) => {
-        push({ type: "step:before", meta });
-      },
-      afterStep: (meta: StepMeta, s: S) => {
-        push({ type: "step:after", meta, shared: s });
-      },
+      beforeStep: (meta: StepMeta) => push({ type: "step:before", meta }),
+      afterStep: (meta: StepMeta, s: S) =>
+        push({ type: "step:after", meta, shared: s }),
     });
 
-    // Capture emit() calls by injecting __stream if not already set
+    // Forward __stream (emit) calls into the queue
     const prevStream = (shared as any).__stream;
     (shared as any).__stream = (chunk: unknown) => {
       push({ type: "chunk", data: chunk });
       if (typeof prevStream === "function") prevStream(chunk);
     };
 
-    // Kick off the flow in the background
     this.run(shared, params, options)
       .catch((err) => push({ type: "error", error: err }))
       .then(() => push(null));
 
-    // Yield events as they appear
     while (true) {
-      await pull();
+      await drain();
       while (queue.length > 0) {
         const event = queue.shift()!;
         if (event === null) {
@@ -310,207 +406,204 @@ export class FlowBuilder<
     }
   }
 
-  // -----------------------------------------------------------------------
-  // Internal execution
-  // -----------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // Internal execution engine
+  // -------------------------------------------------------------------------
 
   protected async _execute(
     shared: S,
     params: P,
     signal?: AbortSignal,
   ): Promise<void> {
-    const hooks = this._getHooks();
-
-    // Pre-scan anchors for goto support (skip when none present)
-    const labels = new Map<string, number>();
-    if (this.steps.some((s) => s.type === "anchor")) {
-      for (let j = 0; j < this.steps.length; j++) {
-        const s = this.steps[j]!;
-        if (s.type === "anchor") labels.set(s.name, j);
-      }
-    }
+    const hooks = this._hooks();
+    const hasAnchors = this.steps.some((s) => s.type === "anchor");
+    const labels = hasAnchors
+      ? buildAnchorMap(this.steps)
+      : new Map<string, number>();
 
     for (let i = 0; i < this.steps.length; i++) {
       signal?.throwIfAborted();
-      const step = this.steps[i]!;
 
-      // Anchors are pure markers — skip execution
-      if (step.type === "anchor") continue;
+      const step = this.steps[i]!;
+      if (step.type === "anchor") continue; // pure marker — nothing to run
 
       const meta: StepMeta = { index: i, type: step.type };
+
       try {
         for (const h of hooks.beforeStep) await h(meta, shared, params);
 
-        let gotoTarget: string | undefined;
-
-        const runBody = async () => {
-          switch (step.type) {
-            case "fn": {
-              // _retry calls the fn and returns the result. For async generator
-              // fns the body has NOT run yet — generators are lazy; calling the
-              // fn just constructs the iterator object.
-              const result = await this._retry(
-                this._res(step.retries, 1, shared, params),
-                this._res(step.delaySec, 0, shared, params),
-                () => step.fn(shared, params),
-              );
-
-              // Detect async (or sync) generators via their well-known symbol.
-              // Using the symbol is more robust than instanceof checks and works
-              // for any async iterable, not just native AsyncGenerators.
-              if (
-                result != null &&
-                typeof (result as any)[Symbol.asyncIterator] === "function"
-              ) {
-                // Manually drive the generator so we can:
-                //   • forward each yielded value to __stream as a chunk
-                //   • capture the final return value for #anchor routing
-                // (for…of discards the return value, so we call .next() directly)
-                const gen = result as AsyncGenerator<
-                  unknown,
-                  string | undefined | void,
-                  unknown
-                >;
-                let genResult = await gen.next();
-                while (!genResult.done) {
-                  (shared as any).__stream?.(genResult.value);
-                  genResult = await gen.next();
-                }
-                if (
-                  typeof genResult.value === "string" &&
-                  genResult.value[0] === "#"
-                )
-                  gotoTarget = genResult.value.slice(1);
-              } else if (typeof result === "string" && result[0] === "#") {
-                gotoTarget = result.slice(1);
-              }
-              break;
-            }
-
-            case "branch": {
-              const bRetries = this._res(step.retries, 1, shared, params);
-              const bDelay = this._res(step.delaySec, 0, shared, params);
-              const action = await this._retry(bRetries, bDelay, () =>
-                step.router(shared, params),
-              );
-              const key = action ? String(action) : "default";
-              const fn = step.branches[key] ?? step.branches["default"];
-              if (fn) {
-                const branchResult = await this._retry(bRetries, bDelay, () =>
-                  fn(shared, params),
-                );
-                if (typeof branchResult === "string" && branchResult[0] === "#")
-                  gotoTarget = branchResult.slice(1);
-              }
-              break;
-            }
-
-            case "loop":
-              while (await step.condition(shared, params))
-                await this._runSub(`loop (step ${i})`, () =>
-                  step.body._execute(shared, params, signal),
-                );
-              break;
-
-            case "batch": {
-              const k = step.key;
-              const prev = (shared as any)[k];
-              const hadKey = Object.prototype.hasOwnProperty.call(shared, k);
-              const list = await step.itemsExtractor(shared, params);
-              for (const item of list) {
-                (shared as any)[k] = item;
-                await this._runSub(`batch (step ${i})`, () =>
-                  step.processor._execute(shared, params, signal),
-                );
-              }
-              if (!hadKey) delete (shared as any)[k];
-              else (shared as any)[k] = prev;
-              break;
-            }
-
-            case "parallel": {
-              const pfnWrappers = hooks.wrapParallelFn;
-              const pRetries = this._res(step.retries, 1, shared, params);
-              const pDelay = this._res(step.delaySec, 0, shared, params);
-
-              if (step.reducer) {
-                // Safe mode: each fn gets its own shallow draft
-                const drafts: S[] = [];
-                await Promise.all(
-                  step.fns.map(async (fn, fi) => {
-                    const draft = { ...shared } as S;
-                    drafts[fi] = draft;
-                    const exec = () =>
-                      this._retry(pRetries, pDelay, () => fn(draft, params));
-                    const wrapped = pfnWrappers.reduceRight<
-                      () => Promise<void>
-                    >(
-                      (next, wrap) => () => wrap(meta, fi, next, draft, params),
-                      async () => {
-                        await exec();
-                      },
-                    );
-                    await wrapped();
-                  }),
-                );
-                step.reducer(shared, drafts);
-              } else {
-                // Original mode: direct shared mutation
-                await Promise.all(
-                  step.fns.map((fn, fi) => {
-                    const exec = () =>
-                      this._retry(pRetries, pDelay, () => fn(shared, params));
-                    const wrapped = pfnWrappers.reduceRight<
-                      () => Promise<void>
-                    >(
-                      (next, wrap) => () =>
-                        wrap(meta, fi, next, shared, params),
-                      async () => {
-                        await exec();
-                      },
-                    );
-                    return wrapped();
-                  }),
-                );
-              }
-              break;
-            }
-          }
-        };
-
-        const rawTimeout = (step as { timeoutMs?: NumberOrFn<S, P> }).timeoutMs;
-        const resolvedTimeout = this._res(rawTimeout, 0, shared, params);
-        const baseExec = (): Promise<void> =>
-          resolvedTimeout > 0
-            ? this._withTimeout(resolvedTimeout, runBody)
-            : runBody();
-
-        const wrappers = hooks.wrapStep;
-        const wrapped = wrappers.reduceRight<() => Promise<void>>(
-          (next, wrap) => () => wrap(meta, next, shared, params),
-          baseExec,
+        const gotoTarget = await this._runStep(
+          step,
+          meta,
+          shared,
+          params,
+          signal,
+          hooks,
         );
-        await wrapped();
 
         for (const h of hooks.afterStep) await h(meta, shared, params);
 
-        // Handle goto: jump to a labelled step
-        if (gotoTarget) {
+        if (gotoTarget !== undefined) {
           const target = labels.get(gotoTarget);
           if (target === undefined)
             throw new Error(`goto target anchor "${gotoTarget}" not found`);
-          i = target; // for-loop will i++ → first step after the anchor
+          i = target; // loop increment will land on the step after the anchor
         }
       } catch (err) {
         if (err instanceof InterruptError) throw err;
         for (const h of hooks.onError) h(meta, err, shared, params);
         if (err instanceof FlowError) throw err;
-        const stepLabel =
+        const label =
           step.type === "fn" ? `step ${i}` : `${step.type} (step ${i})`;
-        throw new FlowError(stepLabel, err);
+        throw new FlowError(label, err);
       }
     }
   }
+
+  /**
+   * Apply timeout and `wrapStep` middleware around a single step, then
+   * delegate to `_dispatchStep`. Returns an anchor target if the step
+   * issued a goto, otherwise `undefined`.
+   */
+  private async _runStep(
+    step: Step<S, P>,
+    meta: StepMeta,
+    shared: S,
+    params: P,
+    signal: AbortSignal | undefined,
+    hooks: ResolvedHooks<S, P>,
+  ): Promise<string | undefined> {
+    let gotoTarget: string | undefined;
+
+    const execute = async () => {
+      gotoTarget = await this._dispatchStep(
+        step,
+        meta,
+        shared,
+        params,
+        signal,
+        hooks,
+      );
+    };
+
+    const timeoutMs = resolveNumber(
+      (step as { timeoutMs?: NumberOrFn<S, P> }).timeoutMs,
+      0,
+      shared,
+      params,
+    );
+    const baseExec =
+      timeoutMs > 0 ? () => withTimeout(timeoutMs, execute) : execute;
+
+    const wrapped = hooks.wrapStep.reduceRight<() => Promise<void>>(
+      (next, wrap) => () => wrap(meta, next, shared, params),
+      baseExec,
+    );
+    await wrapped();
+
+    return gotoTarget;
+  }
+
+  /**
+   * Pure step dispatch — no timeout, no `wrapStep`. Returns goto target if any.
+   */
+  private async _dispatchStep(
+    step: Step<S, P>,
+    meta: StepMeta,
+    shared: S,
+    params: P,
+    signal: AbortSignal | undefined,
+    hooks: ResolvedHooks<S, P>,
+  ): Promise<string | undefined> {
+    switch (step.type) {
+      case "fn": {
+        const result = await retry(
+          resolveNumber(step.retries, 1, shared, params),
+          resolveNumber(step.delaySec, 0, shared, params),
+          () => step.fn(shared, params),
+        );
+        return runFnResult(result, shared);
+      }
+
+      case "branch": {
+        const r = resolveNumber(step.retries, 1, shared, params);
+        const d = resolveNumber(step.delaySec, 0, shared, params);
+        const action = await retry(r, d, () => step.router(shared, params));
+        const key = action ? String(action) : "default";
+        const fn = step.branches[key] ?? step.branches["default"];
+        if (fn) {
+          const result = await retry(r, d, () => fn(shared, params));
+          if (isAnchorTarget(result)) return result.slice(1);
+        }
+        return undefined;
+      }
+
+      case "loop": {
+        while (await step.condition(shared, params))
+          await this._runSub(`loop (step ${meta.index})`, () =>
+            step.body._execute(shared, params, signal),
+          );
+        return undefined;
+      }
+
+      case "batch": {
+        const { key, itemsExtractor, processor } = step;
+        const prev = (shared as any)[key];
+        const hadKey = Object.prototype.hasOwnProperty.call(shared, key);
+        const list = await itemsExtractor(shared, params);
+        for (const item of list) {
+          (shared as any)[key] = item;
+          await this._runSub(`batch (step ${meta.index})`, () =>
+            processor._execute(shared, params, signal),
+          );
+        }
+        if (!hadKey) delete (shared as any)[key];
+        else (shared as any)[key] = prev;
+        return undefined;
+      }
+
+      case "parallel": {
+        await this._runParallel(step, meta, shared, params, hooks);
+        return undefined;
+      }
+    }
+  }
+
+  private async _runParallel(
+    step: ParallelStep<S, P>,
+    meta: StepMeta,
+    shared: S,
+    params: P,
+    hooks: ResolvedHooks<S, P>,
+  ): Promise<void> {
+    const r = resolveNumber(step.retries, 1, shared, params);
+    const d = resolveNumber(step.delaySec, 0, shared, params);
+    const wrappers = hooks.wrapParallelFn;
+
+    const runFn = (fn: NodeFn<S, P>, s: S, fi: number): Promise<void> => {
+      const exec = async () => {
+        await retry(r, d, () => fn(s, params));
+      };
+      return wrappers.reduceRight<() => Promise<void>>(
+        (next, wrap) => () => wrap(meta, fi, next, s, params),
+        exec,
+      )();
+    };
+
+    if (step.reducer) {
+      // Safe mode: each fn gets its own shallow draft
+      const drafts = step.fns.map(() => ({ ...shared }) as S);
+      await Promise.all(step.fns.map((fn, fi) => runFn(fn, drafts[fi]!, fi)));
+      step.reducer(shared, drafts);
+    } else {
+      // Direct shared mutation
+      await Promise.all(step.fns.map((fn, fi) => runFn(fn, shared, fi)));
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Private helpers
+  // -------------------------------------------------------------------------
 
   private _addFn(fn: NodeFn<S, P>, options?: NodeOptions<S, P>): this {
     this.steps.push({
@@ -523,52 +616,11 @@ export class FlowBuilder<
     return this;
   }
 
-  /** Resolve a NumberOrFn value against the current shared state and params. */
-  private _res(
-    val: NumberOrFn<S, P> | undefined,
-    def: number,
-    shared: S,
-    params: P,
-  ): number {
-    if (val === undefined) return def;
-    return typeof val === "function" ? val(shared, params) : val;
-  }
-
   private async _runSub(label: string, fn: () => Promise<void>): Promise<void> {
     try {
       return await fn();
     } catch (err) {
       throw new FlowError(label, err instanceof FlowError ? err.cause : err);
     }
-  }
-
-  private async _retry(
-    times: number,
-    delaySec: number,
-    fn: () => Promise<any> | any,
-  ): Promise<any> {
-    if (times === 1) return fn(); // fast path — no retry overhead
-    while (true) {
-      try {
-        return await fn();
-      } catch (err) {
-        if (!--times) throw err;
-        if (delaySec > 0)
-          await new Promise((r) => setTimeout(r, delaySec * 1000));
-      }
-    }
-  }
-
-  private _withTimeout<T>(ms: number, fn: () => Promise<T>): Promise<T> {
-    let timer: ReturnType<typeof setTimeout>;
-    return Promise.race([
-      fn().finally(() => clearTimeout(timer)),
-      new Promise<T>((_, reject) => {
-        timer = setTimeout(
-          () => reject(new Error(`step timed out after ${ms}ms`)),
-          ms,
-        );
-      }),
-    ]);
   }
 }
