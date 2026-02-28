@@ -171,6 +171,29 @@ See [Anchors & Routing](./anchors-routing.md) for the full guide.
 
 ---
 
+## `.add(fragment)`
+
+Splices all steps from a `Fragment` into the flow at the current position. Fragments are reusable partial flows created with the `fragment()` factory — see [Fragments](./fragments.md) for the full guide.
+
+```typescript
+import { FlowBuilder, fragment } from "flowneer";
+
+const enrich = fragment<State>().then(fetchUser).then(enrichProfile);
+
+flow
+  .startWith(init)
+  .add(enrich) // enrich's steps are inlined here
+  .then(finalize);
+```
+
+| Parameter  | Type                | Description                           |
+| ---------- | ------------------- | ------------------------------------- |
+| `fragment` | `FlowBuilder<S, P>` | A fragment (or FlowBuilder) to inline |
+
+Steps are copied by reference (same semantics as `loop` / `batch` inner builders). The same fragment can be `.add()`-ed into multiple flows.
+
+---
+
 ## `.run(shared, params?, options?)`
 
 Executes the flow.
