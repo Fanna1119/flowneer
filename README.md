@@ -22,6 +22,10 @@ A tiny, zero-dependency fluent flow builder for TypeScript. Chain steps, branch 
 bun add flowneer
 ```
 
+## For LLM Agents
+[llms.txt](https://fanna1119.github.io/flowneer/llms.txt)
+[llms-full.txt](https://fanna1119.github.io/flowneer/llms-full.txt)
+
 ## Quick start
 
 ```typescript
