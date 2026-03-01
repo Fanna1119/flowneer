@@ -1079,4 +1079,11 @@ describe("Fragment / .add()", () => {
     const gen = frag.stream({});
     expect(gen.next()).rejects.toThrow("Fragment cannot be streamed directly");
   });
+
+  test("fragment.stream() throws when called without arguments", async () => {
+    // Covers the optional-parameter default branch in Fragment.stream().
+    const frag = fragment().then(async () => {});
+    const gen = frag.stream();
+    expect(gen.next()).rejects.toThrow("Fragment cannot be streamed directly");
+  });
 });

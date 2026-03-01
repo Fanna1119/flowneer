@@ -46,6 +46,8 @@ export class Fragment<
   }
 
   /** @internal Fragments cannot be streamed — embed them via `.add()`. */
+  // v8 ignore next 5 — async generator has an implicit "resume after yield"
+  // branch that is unreachable here because we always throw before yielding.
   override async *stream(_shared?: S, _params?: P): AsyncGenerator<any> {
     throw new Error(
       "Fragment cannot be streamed directly — use .add() to embed it in a FlowBuilder",

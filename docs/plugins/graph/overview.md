@@ -115,3 +115,7 @@ const flow = new FlowBuilder<ProcessState>()
 - All nodes must have at least one incoming edge except the starting node (in-degree 0).
 - Unreachable nodes are included in the compiled flow if they appear in `addNode()` but not reachable from a root.
 - `compile()` mutates the builder in place and returns `this`.
+
+## See also
+
+- [Graph & Flow Export](./export.md) — `withExportGraph` and `withExportFlow`

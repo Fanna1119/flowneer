@@ -1,7 +1,16 @@
 import { defineConfig } from "vitepress";
-
+import llmstxt from "vitepress-plugin-llms";
+import { copyOrDownloadAsMarkdownButtons } from "vitepress-plugin-llms";
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
+  vite: {
+    plugins: [llmstxt()],
+  },
+  markdown: {
+    config(md) {
+      md.use(copyOrDownloadAsMarkdownButtons);
+    },
+  },
   title: "Flowneer",
   description: "A tiny, zero-dependency fluent flow builder for TypeScript.",
   base: "/flowneer/",
@@ -11,9 +20,32 @@ export default defineConfig({
       { text: "Home", link: "/" },
       { text: "Core", link: "/core/getting-started" },
       { text: "Plugins", link: "/plugins/overview" },
+      { text: "Recipes", link: "/recipes/" },
     ],
 
     sidebar: [
+      {
+        text: "Recipes",
+        items: [
+          { text: "Overview", link: "/recipes/" },
+          { text: "Tool-calling Agent", link: "/recipes/tool-calling-agent" },
+          { text: "Blog Post Generator", link: "/recipes/blog-post-generator" },
+          {
+            text: "Resilient API Pipeline",
+            link: "/recipes/resilient-api-pipeline",
+          },
+          {
+            text: "Streaming Chat Server",
+            link: "/recipes/streaming-chat-server",
+          },
+          {
+            text: "Batch Document Processing",
+            link: "/recipes/batch-document-processing",
+          },
+          { text: "Human-in-the-loop", link: "/recipes/human-in-the-loop" },
+          { text: "Edge Runtime", link: "/recipes/edge-runtime" },
+        ],
+      },
       {
         text: "Core",
         items: [
@@ -79,6 +111,7 @@ export default defineConfig({
           },
           { text: "withTimeout", link: "/plugins/resilience/timeout" },
           { text: "withFallback", link: "/plugins/resilience/fallback" },
+          { text: "withTryCatch", link: "/plugins/resilience/try-catch" },
           { text: "withCycles", link: "/plugins/resilience/cycles" },
         ],
       },
@@ -94,6 +127,7 @@ export default defineConfig({
       {
         text: "Plugins — Agent",
         items: [
+          { text: "createAgent & tool()", link: "/plugins/agent/create-agent" },
           { text: "withReActLoop", link: "/plugins/agent/react-loop" },
           { text: "humanNode", link: "/plugins/agent/human-node" },
           { text: "Multi-agent Patterns", link: "/plugins/agent/patterns" },
@@ -129,7 +163,10 @@ export default defineConfig({
       },
       {
         text: "Plugins — Graph",
-        items: [{ text: "Graph Composition", link: "/plugins/graph/overview" }],
+        items: [
+          { text: "Graph Composition", link: "/plugins/graph/overview" },
+          { text: "Graph & Flow Export", link: "/plugins/graph/export" },
+        ],
       },
       {
         text: "Plugins — Eval",

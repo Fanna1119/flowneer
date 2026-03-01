@@ -315,6 +315,46 @@ describe("withCircuitBreaker", () => {
     await expect(flow.run({})).rejects.toBeDefined();
     expect(attempts).toBe(2);
   });
+
+  test("uses default options when called with no arguments", async () => {
+    // Exercises the opts = {} default-parameter branch.
+    // With defaults (maxFailures=3) two failures should NOT open the circuit.
+    let attempts = 0;
+    const flow = (new FlowBuilder() as any)
+      .withCircuitBreaker()
+      .startWith(async () => {
+        attempts += 1;
+        throw new Error("fail");
+      });
+
+    await expect(flow.run({})).rejects.toBeDefined();
+    await expect(flow.run({})).rejects.toBeDefined();
+    // Only 2 failures; circuit still closed — step body runs both times
+    expect(attempts).toBe(2);
+  });
+
+  test("successful step resets consecutive-failure count", async () => {
+    // Exercises the afterStep hook (success path).
+    let calls = 0;
+    let shouldFail = true;
+    const flow = (new FlowBuilder() as any)
+      .withCircuitBreaker({ maxFailures: 2 })
+      .startWith(async () => {
+        calls += 1;
+        if (shouldFail) throw new Error("fail");
+      });
+
+    // One failure (count = 1), then one success (count reset to 0)
+    await expect(flow.run({})).rejects.toBeDefined();
+    shouldFail = false;
+    await flow.run({});
+
+    // After the success reset, a single new failure should NOT open the circuit
+    shouldFail = true;
+    await expect(flow.run({})).rejects.toBeDefined();
+    // Circuit still closed — all three calls ran
+    expect(calls).toBe(3);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
