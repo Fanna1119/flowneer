@@ -1,6 +1,6 @@
 {
   "name": "flowneer",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "Zero-dependency fluent flow builder for AI agents",
   "license": "MIT",
   "type": "module",
