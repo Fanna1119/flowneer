@@ -13,21 +13,21 @@ const flow = new FlowBuilder<MyState>().withTiming().startWith(myStep);
 
 ## Plugin Categories
 
-| Category           | Plugins                                                                                                                |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------- |
-| **LLM**            | `withCostTracker`, `withRateLimit`, `withStructuredOutput`, `withTokenBudget`                                          |
-| **Memory**         | `withMemory`, `BufferWindowMemory`, `KVMemory`, `SummaryMemory`                                                        |
-| **Observability**  | `withCallbacks`, `withHistory`, `withInterrupts`, `withTiming`, `withVerbose`                                          |
-| **Persistence**    | `withCheckpoint`, `withAuditLog`, `withReplay`, `withVersionedCheckpoint`                                              |
-| **Resilience**     | `withCircuitBreaker`, `withTimeout`, `withFallback`, `withCycles`                                                      |
-| **Dev / Testing**  | `withDryRun`, `withMocks`, `withStepLimit`, `parallelAtomic`                                                           |
-| **Agent**          | `withReActLoop`, `humanNode`, `resumeFlow`, `supervisorCrew`, `sequentialCrew`, `hierarchicalCrew`, `roundRobinDebate` |
-| **Tools**          | `withTools`, `ToolRegistry`, `executeTool`, `executeTools`                                                             |
-| **Messaging**      | `withChannels`, `withStream`, `emit`, `sendTo`, `receiveFrom`                                                          |
-| **Output Parsers** | `parseJsonOutput`, `parseListOutput`, `parseRegexOutput`, `parseMarkdownTable`                                         |
-| **Telemetry**      | `TelemetryDaemon`, `consoleExporter`                                                                                   |
-| **Graph**          | `addNode`, `addEdge`, `compile`                                                                                        |
-| **Eval**           | `runEvalSuite`, `exactMatch`, `f1Score`, `retrievalPrecision`                                                          |
+| Category           | Plugins                                                                                                                                       |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **LLM**            | `withCostTracker`, `withRateLimit`, `withStructuredOutput`, `withTokenBudget`                                                                 |
+| **Memory**         | `withMemory`, `BufferWindowMemory`, `KVMemory`, `SummaryMemory`                                                                               |
+| **Observability**  | `withCallbacks`, `withHistory`, `withInterrupts`, `withTiming`, `withVerbose`                                                                 |
+| **Persistence**    | `withCheckpoint`, `withAuditLog`, `withReplay`, `withVersionedCheckpoint`                                                                     |
+| **Resilience**     | `withCircuitBreaker`, `withTimeout`, `withFallback`, `withCycles`                                                                             |
+| **Dev / Testing**  | `withDryRun`, `withMocks`, `withStepLimit`, `parallelAtomic`                                                                                  |
+| **Agent**          | `withReActLoop`, `humanNode`, `resumeFlow`, `tool`, `createAgent`, `supervisorCrew`, `sequentialCrew`, `hierarchicalCrew`, `roundRobinDebate` |
+| **Tools**          | `withTools`, `ToolRegistry`, `executeTool`, `executeTools`                                                                                    |
+| **Messaging**      | `withChannels`, `withStream`, `emit`, `sendTo`, `receiveFrom`                                                                                 |
+| **Output Parsers** | `parseJsonOutput`, `parseListOutput`, `parseRegexOutput`, `parseMarkdownTable`                                                                |
+| **Telemetry**      | `TelemetryDaemon`, `consoleExporter`                                                                                                          |
+| **Graph**          | `addNode`, `addEdge`, `compile`, `withExportGraph`, `withExportFlow`                                                                          |
+| **Eval**           | `runEvalSuite`, `exactMatch`, `f1Score`, `retrievalPrecision`                                                                                 |
 
 ## Import Paths
 
@@ -78,6 +78,7 @@ import { withAtomicUpdates } from "flowneer/plugins/dev";
 // Agent
 import { withReActLoop } from "flowneer/plugins/agent";
 import { withHumanNode, resumeFlow } from "flowneer/plugins/agent";
+import { tool, createAgent } from "flowneer/plugins/agent";
 import {
   supervisorCrew,
   sequentialCrew,
@@ -108,6 +109,7 @@ import { TelemetryDaemon, consoleExporter } from "flowneer/plugins/telemetry";
 
 // Graph
 import { withGraph } from "flowneer/plugins/graph";
+import { withExportGraph, withExportFlow } from "flowneer/plugins/graph";
 
 // Eval
 import { runEvalSuite, exactMatch, f1Score } from "flowneer/plugins/eval";

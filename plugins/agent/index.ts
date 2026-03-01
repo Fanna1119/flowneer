@@ -10,3 +10,17 @@ export {
   hierarchicalCrew,
   roundRobinDebate,
 } from "./patterns";
+
+export { tool, createAgent } from "./createAgent";
+export type {
+  ZodLikeObject,
+  ToolConfig,
+  ToolConfigSchema,
+  ToolConfigParams,
+  ChatMessage,
+  LlmToolDef,
+  LlmResponse,
+  LlmAdapter,
+  AgentState,
+  CreateAgentOptions,
+} from "./createAgent";

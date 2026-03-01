@@ -23,4 +23,11 @@ export type {
   StepMeta,
   FlowHooks,
   FlowneerPlugin,
+  FnStep,
+  BranchStep,
+  LoopStep,
+  BatchStep,
+  ParallelStep,
+  AnchorStep,
+  Step,
 } from "./src";

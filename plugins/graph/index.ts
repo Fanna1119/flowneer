@@ -163,6 +163,20 @@ function compileGraph(
 // Plugin implementation
 // ─────────────────────────────────────────────────────────────────────────────
 
+export { withExportGraph } from "./withExportGraph";
+export type {
+  ExportFormat,
+  GraphExport,
+  GraphNodeExport,
+  GraphEdgeExport,
+} from "./withExportGraph";
+
+// withExportFlow is intentionally NOT re-exported here.
+// Import it explicitly when you want the unified FlowBuilder export:
+//   import { withExportFlow } from "flowneer/plugins/graph/withExportFlow";
+// This keeps withExportFlow's module augmentation isolated so it only
+// activates when the plugin is deliberately loaded.
+
 export const withGraph: FlowneerPlugin = {
   addNode(
     this: FlowBuilder<any, any>,
