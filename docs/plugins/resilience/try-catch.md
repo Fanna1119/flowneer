@@ -49,6 +49,8 @@ Always runs after the `.try()` (and optional `.catch()`), regardless of success 
 
 > **Note:** `.catch()` and `.finally()` must be called **immediately** after `.try()` — no other `.then()` or builder calls can appear between them.
 
+> **InterruptError:** `InterruptError` (thrown by `withHumanNode` and flow abort signals) is never caught by `.try()/.catch()` — it propagates immediately to the caller just like it would outside a try block.
+
 ## `__tryError` context
 
 The caught error is stored on `shared.__tryError` inside the catch fragment:

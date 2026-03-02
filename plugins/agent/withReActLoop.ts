@@ -88,16 +88,17 @@ export const withReActLoop: FlowneerPlugin = {
     const { think, maxIterations = 10, onObservation } = options;
 
     // Use a loop + branch to implement the ReAct cycle
-    let iterations = 0;
-
+    // NOTE: the counter lives on shared (not in a closure) so the loop
+    // resets correctly between multiple .run() calls on the same flow.
     this.loop(
       (shared: any) => {
-        // Continue while not finished and under the iteration cap
-        return !shared.__reactFinished && iterations < maxIterations;
+        const iters = (shared.__reactIterations as number | undefined) ?? 0;
+        return !shared.__reactFinished && iters < maxIterations;
       },
       (b: FlowBuilder<any, any>) => {
         b.startWith(async (shared: any, params: any) => {
-          iterations++;
+          shared.__reactIterations =
+            ((shared.__reactIterations as number | undefined) ?? 0) + 1;
           const result = await think(shared, params);
 
           if (result.action === "finish") {
@@ -140,6 +141,7 @@ export const withReActLoop: FlowneerPlugin = {
       }
       // Clean up internal flags
       delete shared.__reactFinished;
+      delete shared.__reactIterations;
       delete shared.__pendingToolCalls;
     });
 

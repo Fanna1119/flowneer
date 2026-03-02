@@ -175,10 +175,18 @@ export class FlowBuilder<
     return (this._hooksCache ??= buildHookCache(this._hooksList));
   }
 
-  /** Register lifecycle hooks (called by plugin methods, not by consumers). */
-  protected _setHooks(hooks: Partial<FlowHooks<S, P>>): void {
+  /**
+   * Register lifecycle hooks (called by plugin methods, not by consumers).
+   * Returns a dispose function that removes these hooks when called.
+   */
+  protected _setHooks(hooks: Partial<FlowHooks<S, P>>): () => void {
     this._hooksList.push(hooks);
     this._hooksCache = null;
+    const idx = this._hooksList.length - 1;
+    return () => {
+      this._hooksList.splice(idx, 1);
+      this._hooksCache = null;
+    };
   }
 
   /** Register a plugin — copies its methods onto `FlowBuilder.prototype`. */
@@ -243,6 +251,7 @@ export class FlowBuilder<
       retries: options?.retries ?? 1,
       delaySec: options?.delaySec ?? 0,
       timeoutMs: options?.timeoutMs ?? 0,
+      label: options?.label,
     });
     return this;
   }
@@ -254,10 +263,16 @@ export class FlowBuilder<
   loop(
     condition: (shared: S, params: P) => Promise<boolean> | boolean,
     body: (b: FlowBuilder<S, P>) => void,
+    options?: { label?: string },
   ): this {
     const inner = new FlowBuilder<S, P>();
     body(inner);
-    this.steps.push({ type: "loop", condition, body: inner });
+    this.steps.push({
+      type: "loop",
+      condition,
+      body: inner,
+      label: options?.label,
+    });
     return this;
   }
 
@@ -280,7 +295,7 @@ export class FlowBuilder<
   batch(
     items: (shared: S, params: P) => Promise<any[]> | any[],
     processor: (b: FlowBuilder<S, P>) => void,
-    options?: { key?: string },
+    options?: { key?: string; label?: string },
   ): this {
     const inner = new FlowBuilder<S, P>();
     processor(inner);
@@ -289,6 +304,7 @@ export class FlowBuilder<
       itemsExtractor: items,
       processor: inner,
       key: options?.key ?? "__batchItem",
+      label: options?.label,
     });
     return this;
   }
@@ -313,6 +329,7 @@ export class FlowBuilder<
       delaySec: options?.delaySec ?? 0,
       timeoutMs: options?.timeoutMs ?? 0,
       reducer,
+      label: options?.label,
     });
     return this;
   }
@@ -375,8 +392,10 @@ export class FlowBuilder<
             notify = r;
           });
 
-    // Wire beforeStep / afterStep into the event queue
-    this._setHooks({
+    // Wire beforeStep / afterStep into the event queue.
+    // Capture dispose so we can remove these hooks after the stream ends
+    // (prevents hook accumulation if the same flow is streamed multiple times).
+    const disposeHooks = this._setHooks({
       beforeStep: (meta: StepMeta) => push({ type: "step:before", meta }),
       afterStep: (meta: StepMeta, s: S) =>
         push({ type: "step:after", meta, shared: s }),
@@ -389,19 +408,29 @@ export class FlowBuilder<
       if (typeof prevStream === "function") prevStream(chunk);
     };
 
-    this.run(shared, params, options)
-      .catch((err) => push({ type: "error", error: err }))
-      .then(() => push(null));
+    try {
+      this.run(shared, params, options)
+        .catch((err) => push({ type: "error", error: err }))
+        .then(() => push(null));
 
-    while (true) {
-      await drain();
-      while (queue.length > 0) {
-        const event = queue.shift()!;
-        if (event === null) {
-          yield { type: "done" } as StreamEvent<S>;
-          return;
+      while (true) {
+        await drain();
+        while (queue.length > 0) {
+          const event = queue.shift()!;
+          if (event === null) {
+            yield { type: "done" } as StreamEvent<S>;
+            return;
+          }
+          yield event;
         }
-        yield event;
+      }
+    } finally {
+      // Remove the stream hooks and restore the previous __stream handler
+      disposeHooks();
+      if (typeof prevStream === "function") {
+        (shared as any).__stream = prevStream;
+      } else {
+        delete (shared as any).__stream;
       }
     }
   }
@@ -427,7 +456,8 @@ export class FlowBuilder<
       const step = this.steps[i]!;
       if (step.type === "anchor") continue; // pure marker — nothing to run
 
-      const meta: StepMeta = { index: i, type: step.type };
+      const stepLabel = (step as { label?: string }).label;
+      const meta: StepMeta = { index: i, type: step.type, label: stepLabel };
 
       try {
         for (const h of hooks.beforeStep) await h(meta, shared, params);
@@ -453,8 +483,11 @@ export class FlowBuilder<
         if (err instanceof InterruptError) throw err;
         for (const h of hooks.onError) h(meta, err, shared, params);
         if (err instanceof FlowError) throw err;
+        const labelPart = stepLabel ? `"${stepLabel}" ` : "";
         const label =
-          step.type === "fn" ? `step ${i}` : `${step.type} (step ${i})`;
+          step.type === "fn"
+            ? `${labelPart}step ${i}`
+            : `${labelPart}${step.type} (step ${i})`;
         throw new FlowError(label, err);
       }
     }
@@ -563,7 +596,7 @@ export class FlowBuilder<
       }
 
       case "parallel": {
-        await this._runParallel(step, meta, shared, params, hooks);
+        await this._runParallel(step, meta, shared, params, signal, hooks);
         return undefined;
       }
     }
@@ -574,6 +607,7 @@ export class FlowBuilder<
     meta: StepMeta,
     shared: S,
     params: P,
+    signal: AbortSignal | undefined,
     hooks: ResolvedHooks<S, P>,
   ): Promise<void> {
     const r = resolveNumber(step.retries, 1, shared, params);
@@ -582,6 +616,7 @@ export class FlowBuilder<
 
     const runFn = (fn: NodeFn<S, P>, s: S, fi: number): Promise<void> => {
       const exec = async () => {
+        signal?.throwIfAborted();
         await retry(r, d, () => fn(s, params));
       };
       return wrappers.reduceRight<() => Promise<void>>(
@@ -612,6 +647,7 @@ export class FlowBuilder<
       retries: options?.retries ?? 1,
       delaySec: options?.delaySec ?? 0,
       timeoutMs: options?.timeoutMs ?? 0,
+      label: options?.label,
     });
     return this;
   }

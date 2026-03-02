@@ -70,6 +70,8 @@ export interface NodeOptions<
   retries?: NumberOrFn<S, P>;
   delaySec?: NumberOrFn<S, P>;
   timeoutMs?: NumberOrFn<S, P>;
+  /** Human-readable label for this step, shown in error messages and hook metadata. */
+  label?: string;
 }
 
 export interface RunOptions {

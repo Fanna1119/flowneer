@@ -10,7 +10,7 @@ Flowneer supports two complementary streaming APIs:
 
 ## FlowBuilder.stream()
 
-`.stream()` is the recommended API when consuming a flow from the outside. It yields events as the flow runs:
+`.stream()` is the recommended API when consuming a flow from the outside. It yields events as the flow runs. The same flow instance can be streamed multiple times — hook state is scoped to each individual call and cleaned up automatically when the generator returns or is abandoned:
 
 ```typescript
 for await (const event of flow.stream(shared)) {
