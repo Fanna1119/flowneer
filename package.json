@@ -40,7 +40,10 @@
     "prepublishOnly": "bun test && bun run build",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs"
+    "docs:preview": "vitepress preview docs",
+    "bump:patch": "bun pm version patch -m \"Bump version to %s\"",
+    "bump:minor": "bun pm version minor -m \"Bump version to %s\"",
+    "bump:major": "bun pm version major -m \"Bump version to %s\""
   },
   "devDependencies": {
     "@types/bun": "latest",
