@@ -1,5 +1,5 @@
 import type { FlowBuilder, FlowneerPlugin } from "../../Flowneer";
-import { FlowError } from "../../Flowneer";
+import { FlowError, InterruptError } from "../../Flowneer";
 
 // ---------------------------------------------------------------------------
 // Internal block descriptor — mutated by .catch() and .finally() before the
@@ -98,6 +98,8 @@ export const withTryCatch: FlowneerPlugin = {
       try {
         await (block.tryFrag as any)._execute(shared, params, undefined);
       } catch (tryErr) {
+        // InterruptError must propagate — it signals flow cancellation
+        if (tryErr instanceof InterruptError) throw tryErr;
         if (block.catchFrag) {
           // --- catch -----------------------------------------------------------
           // Unwrap FlowError so the consumer sees the original cause.

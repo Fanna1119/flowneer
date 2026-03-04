@@ -143,59 +143,50 @@ async function demoRetryFastPath() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 3. Anchor scan skip — flow with NO anchors skips the labels map entirely
-//    Compare against a flow that has anchors to see the scan is ~free
+// 3. Anchor goto cycling — steps return "#start" to loop back, with maxVisits
+//    guarding against infinite cycles.  Demonstrates real goto behaviour:
+//      • "#start" jumps back to the anchor and increments the visit counter
+//      • once n reaches the target the step returns undefined → flow exits
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function demoAnchorScanSkip() {
-  const RUNS = 50_000;
+async function demoAnchorGoto() {
+  const CYCLES = 10; // how many times we loop back to "#start" per run
+  const RUNS = 10_000;
+
   interface S {
     n: number;
   }
 
-  // No anchors — scan is skipped entirely
-  const flowNoAnchors = new FlowBuilder<S>()
-    .startWith((s) => {
-      s.n++;
-    })
+  //   anchor("start", CYCLES) ← maxVisits guard (throws if exceeded)
+  //   increment n
+  //   if n < CYCLES → return "#start"  (goto)
+  //   otherwise fall through to "end"
+  const flow = new FlowBuilder<S>()
+    .anchor("start", CYCLES)
     .then((s) => {
       s.n++;
     })
-    .then((s) => {
-      s.n++;
-    });
+    .then((s) => (s.n < CYCLES ? "#start" : undefined))
+    .anchor("end");
 
-  // With anchors — scan runs, labels map is built
-  const flowWithAnchors = new FlowBuilder<S>()
-    .anchor("start")
-    .startWith((s) => {
-      s.n++;
-    })
-    .then((s) => {
-      s.n++;
-    })
-    .anchor("end")
-    .then((s) => {
-      s.n++;
-    });
+  const t0 = performance.now();
+  for (let i = 0; i < RUNS; i++) await flow.run({ n: 0 });
+  const elapsed = performance.now() - t0;
 
-  const t1 = performance.now();
-  for (let i = 0; i < RUNS; i++) await flowNoAnchors.run({ n: 0 });
-  const noAnchorMs = performance.now() - t1;
+  const totalStepInvocations = RUNS * CYCLES * 2; // 2 fn steps per cycle
 
-  const t2 = performance.now();
-  for (let i = 0; i < RUNS; i++) await flowWithAnchors.run({ n: 0 });
-  const withAnchorMs = performance.now() - t2;
-
-  console.log(`\n── 3. Anchor scan skip — ${RUNS.toLocaleString()} runs ──`);
   console.log(
-    `   Without anchors (scan skipped) : ${noAnchorMs.toFixed(1)} ms`,
+    `\n── 3. Anchor goto cycling — ${RUNS.toLocaleString()} runs × ${CYCLES} cycles ──`,
   );
   console.log(
-    `   With anchors    (scan runs)    : ${withAnchorMs.toFixed(1)} ms`,
+    `   Total step invocations : ${totalStepInvocations.toLocaleString()}`,
+  );
+  console.log(`   Total time             : ${elapsed.toFixed(1)} ms`);
+  console.log(
+    `   Per cycle              : ${((elapsed / (RUNS * CYCLES)) * 1000).toFixed(2)} µs`,
   );
   console.log(
-    `   Overhead of scan               : +${(withAnchorMs - noAnchorMs).toFixed(1)} ms`,
+    `   maxVisits=${CYCLES} enforced  — exceeding it throws a cycle-limit error`,
   );
 }
 
@@ -243,7 +234,7 @@ console.log("Flowneer v0.4.0 — performance improvements demo\n");
 
 await demoBatchWithHooks();
 await demoRetryFastPath();
-await demoAnchorScanSkip();
+await demoAnchorGoto();
 await demoTimeoutCleanup();
 
 console.log("\nDone.");

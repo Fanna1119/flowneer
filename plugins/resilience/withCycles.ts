@@ -3,12 +3,11 @@ import type { FlowneerPlugin } from "../../Flowneer";
 declare module "../../Flowneer" {
   interface FlowBuilder<S, P> {
     /**
-     * Guard against infinite goto loops.
+     * @deprecated Use `.anchor("name", maxVisits)` instead.
      *
-     * - `withCycles(n)` — throws after `n` total anchor jumps per `run()`.
-     * - `withCycles(n, "anchorName")` — throws after `n` visits to the named
-     *   anchor via goto. The global limit (if also set) still applies.
-     * - Both forms can be combined: `.withCycles(100).withCycles(5, "fast")`
+     * `.anchor("refine", 5)` is the built-in equivalent and requires no plugin.
+     *
+     * `withCycles` will be removed in a future major version.
      */
     withCycles(maxJumps: number, anchor?: string): this;
   }

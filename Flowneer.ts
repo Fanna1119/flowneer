@@ -7,6 +7,7 @@
 
 export {
   FlowBuilder,
+  CoreFlowBuilder,
   Fragment,
   fragment,
   FlowError,
@@ -30,4 +31,7 @@ export type {
   ParallelStep,
   AnchorStep,
   Step,
+  InstancePlugin,
+  StepContext,
+  StepHandler,
 } from "./src";

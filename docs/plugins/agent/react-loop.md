@@ -84,12 +84,13 @@ type ThinkResult =
 
 ## State Keys
 
-| Key                | Direction           | Description                                        |
-| ------------------ | ------------------- | -------------------------------------------------- |
-| `__tools`          | Set by `withTools`  | The `ToolRegistry` — required                      |
-| `__toolResults`    | **Read** in `think` | Results from the last tool round                   |
-| `__reactOutput`    | **Read** after loop | The `output` from the final `{ action: "finish" }` |
-| `__reactExhausted` | **Read** after loop | `true` if `maxIterations` was reached              |
+| Key                 | Direction           | Description                                        |
+| ------------------- | ------------------- | -------------------------------------------------- |
+| `__tools`           | Set by `withTools`  | The `ToolRegistry` — required                      |
+| `__toolResults`     | **Read** in `think` | Results from the last tool round                   |
+| `__reactIterations` | Internal            | Running iteration count — reset each `.run()` call |
+| `__reactOutput`     | **Read** after loop | The `output` from the final `{ action: "finish" }` |
+| `__reactExhausted`  | **Read** after loop | `true` if `maxIterations` was reached              |
 
 ## How It Works
 
@@ -97,13 +98,15 @@ Behind the scenes, `withReActLoop` compiles down to:
 
 ```
 .loop(
-  (s) => !s.__reactFinished && iterations < maxIterations,
+  (s) => !s.__reactFinished && (s.__reactIterations ?? 0) < maxIterations,
   (b) => b
-    .startWith(think → set __pendingToolCalls or __reactFinished)
+    .startWith(increment __reactIterations; think → set __pendingToolCalls or __reactFinished)
     .then(execute tools from __pendingToolCalls → set __toolResults)
 )
-.then(mark __reactExhausted if needed)
+.then(mark __reactExhausted if needed; delete __reactIterations)
 ```
+
+The iteration counter lives on `shared.__reactIterations` (not in a closure), so the loop resets correctly when `.run()` is called multiple times on the same flow instance.
 
 ## Requires `withTools`
 

@@ -128,7 +128,7 @@ flow.parallel([workerA, workerB], undefined, (shared, [draftA, draftB]) => {
 });
 ```
 
-The `retries` and `delaySec` options apply per-function.
+The `retries` and `delaySec` options apply per-function. Each branch also checks the flow's `AbortSignal` on entry, so aborting the parent flow takes effect as each running branch completes rather than waiting for all to settle.
 
 ---
 
@@ -152,13 +152,14 @@ Anchors are automatically detected before flow execution. Jumping to a non-exist
 
 ## NodeOptions
 
-All `fn`, `branch`, and `parallel` steps accept `NodeOptions`:
+All `fn`, `branch`, `loop`, `batch`, and `parallel` steps accept `NodeOptions`:
 
 ```typescript
 interface NodeOptions<S, P> {
   retries?: NumberOrFn<S, P>; // total attempts, default 1
   delaySec?: NumberOrFn<S, P>; // seconds between retries, default 0
   timeoutMs?: NumberOrFn<S, P>; // per-step timeout ms, default 0 (disabled)
+  label?: string; // human-readable name for this step
 }
 ```
 
@@ -168,5 +169,34 @@ interface NodeOptions<S, P> {
 .then(step, {
   retries:  (s) => (s.isHighPriority ? 5 : 2),
   timeoutMs: 10_000,
+  label: "fetchUser",
 })
+```
+
+### Step labels
+
+The `label` option is available on every step type and serves two purposes:
+
+- **Observability** — `meta.label` is populated in all hook callbacks (`beforeStep`, `afterStep`, `onError`, `wrapStep`), making it easy to identify which step is running without relying on index numbers.
+- **Error messages** — when a labelled step throws, the `FlowError` message includes the label: `"fetchUser" step 2` instead of `step 2`.
+
+```typescript
+flow
+  .then(fetchUser, { label: "fetchUser" })
+  .branch(
+    routeByIntent,
+    { buy: handleBuy, refund: handleRefund },
+    { label: "intentRouter" },
+  )
+  .loop(
+    (s) => !s.done,
+    (b) => b.then(poll),
+    { label: "pollLoop" },
+  )
+  .batch(
+    (s) => s.items,
+    (b) => b.then(process),
+    { label: "itemBatch" },
+  )
+  .parallel([workerA, workerB], { label: "parallelFetch" });
 ```

@@ -4,6 +4,7 @@ import type {
   NodeFn,
   StepMeta,
 } from "../../Flowneer";
+import { InterruptError } from "../../Flowneer";
 
 declare module "../../Flowneer" {
   interface FlowBuilder<S, P> {
@@ -27,6 +28,8 @@ export const withFallback: FlowneerPlugin = {
         try {
           await next();
         } catch (e) {
+          // InterruptError must propagate — it signals flow cancellation
+          if (e instanceof InterruptError) throw e;
           shared.__fallbackError = {
             stepIndex: meta.index,
             stepType: meta.type,
