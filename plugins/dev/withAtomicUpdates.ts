@@ -14,7 +14,9 @@ declare module "../../Flowneer" {
     ): this;
   }
 }
-
+/**
+ * @deprecated This plugin is no longer needed as atomic updates are now supported natively via the `parallel` method.
+ */
 export const withAtomicUpdates: FlowneerPlugin = {
   parallelAtomic(this: any, fns: any[], reducer: any, options?: any) {
     return this.parallel(fns, options, reducer);

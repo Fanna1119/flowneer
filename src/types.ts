@@ -135,3 +135,32 @@ export type FlowneerPlugin = Record<
   string,
   (this: FlowBuilder<any, any>, ...args: any[]) => any
 >;
+
+/**
+ * An instance-scoped plugin. Called immediately when passed to `flow.use()`;
+ * registers hooks and/or performs setup on the specific `FlowBuilder` instance.
+ *
+ * Write plugins as factories so settings are captured in a closure:
+ * ```ts
+ * function withTiming(): InstancePlugin<any> {
+ *   return (flow) => {
+ *     const starts = new Map<number, number>();
+ *     flow.addHooks({
+ *       beforeStep: (meta) => { starts.set(meta.index, Date.now()); },
+ *       afterStep:  (meta, shared) => { shared.__timings ??= {}; shared.__timings[meta.index] = Date.now() - starts.get(meta.index)!; },
+ *     });
+ *   };
+ * }
+ *
+ * const flow = new FlowBuilder<MyState>()
+ *   .with([withTiming(), withRateLimit({ rps: 10 })])
+ *   .then(myStep);
+ * ```
+ *
+ * Order matters: plugins are applied left-to-right, so earlier plugins wrap
+ * later ones (the first plugin's `wrapStep` runs outermost).
+ */
+export type InstancePlugin<
+  S = any,
+  P extends Record<string, unknown> = Record<string, unknown>,
+> = (flow: FlowBuilder<S, P>) => void;

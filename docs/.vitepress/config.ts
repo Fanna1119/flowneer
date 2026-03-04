@@ -55,6 +55,7 @@ export default defineConfig({
           { text: "Anchors & Routing", link: "/core/anchors-routing" },
           { text: "Streaming", link: "/core/streaming" },
           { text: "Writing Plugins", link: "/core/plugins" },
+          { text: "Extending Flowneer", link: "/core/extending" },
           { text: "Errors", link: "/core/errors" },
         ],
       },
