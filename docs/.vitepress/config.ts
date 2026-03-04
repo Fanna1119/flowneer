@@ -44,6 +44,7 @@ export default defineConfig({
           },
           { text: "Human-in-the-loop", link: "/recipes/human-in-the-loop" },
           { text: "Edge Runtime", link: "/recipes/edge-runtime" },
+          { text: "Immer State", link: "/recipes/immer-state" },
         ],
       },
       {
