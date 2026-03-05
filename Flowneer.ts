@@ -22,6 +22,7 @@ export type {
   NodeOptions,
   RunOptions,
   StepMeta,
+  StepFilter,
   FlowHooks,
   FlowneerPlugin,
   FnStep,

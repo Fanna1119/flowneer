@@ -31,6 +31,7 @@ export type {
   NodeOptions,
   RunOptions,
   StepMeta,
+  StepFilter,
   FlowHooks,
   FlowneerPlugin,
   InstancePlugin,
