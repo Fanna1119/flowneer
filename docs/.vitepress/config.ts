@@ -118,13 +118,28 @@ export default defineConfig({
         ],
       },
       {
+        text: "Plugins — Compliance",
+        items: [
+          { text: "withAuditFlow", link: "/plugins/compliance/audit-flow" },
+          {
+            text: "withRuntimeCompliance",
+            link: "/plugins/compliance/runtime-compliance",
+          },
+        ],
+      },
+      {
         text: "Plugins — Dev / Testing",
         items: [
           { text: "withDryRun", link: "/plugins/dev/dry-run" },
           { text: "withMocks", link: "/plugins/dev/mocks" },
           { text: "withStepLimit", link: "/plugins/dev/step-limit" },
           { text: "parallelAtomic", link: "/plugins/dev/atomic-updates" },
+          { text: "withFlowAnalyzer", link: "/plugins/dev/flow-analyzer" },
         ],
+      },
+      {
+        text: "Plugins — Config",
+        items: [{ text: "JsonFlowBuilder", link: "/plugins/config/overview" }],
       },
       {
         text: "Plugins — Agent",

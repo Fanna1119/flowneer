@@ -113,3 +113,148 @@ array filter, predicate filter, and `addHooks` with a filter. Run with:
 ```
 bun run examples/stepFilter.ts
 ```
+
+---
+
+## New plugin: Compliance (`plugins/compliance/`)
+
+Statically audit and runtime-enforce data-boundary rules on flows.
+
+### `withAuditFlow` — static taint analysis
+
+Walks the compiled `steps[]` array without executing anything and checks that no
+"sink" step (e.g. an outbound call) appears after a "source" step (e.g. a PII
+fetch) for each supplied `TaintRule`.
+
+```typescript
+import { FlowBuilder } from "flowneer";
+import { withAuditFlow } from "flowneer/plugins/compliance";
+
+FlowBuilder.use(withAuditFlow);
+
+const report = flow.auditFlow([
+  {
+    source: ["pii:*"],
+    sink: (meta) => meta.label?.startsWith("external:") ?? false,
+    message: "PII must not reach external endpoints",
+  },
+]);
+
+if (!report.passed) throw new Error("Compliance check failed");
+```
+
+### `withRuntimeCompliance` — hook-based runtime checks
+
+Installs inspectors that examine shared state before each step. Responses can be
+configured per-inspector: `"throw"` (default), `"warn"`, or `"record"`.
+
+```typescript
+import {
+  withRuntimeCompliance,
+  scanShared,
+  ComplianceError,
+} from "flowneer/plugins/compliance";
+
+FlowBuilder.use(withRuntimeCompliance);
+
+flow.withRuntimeCompliance([
+  {
+    filter: (meta) => meta.label?.startsWith("external:") ?? false,
+    check: (shared) => {
+      const hits = scanShared(shared, ["user.email"]);
+      return hits.length > 0 ? `PII found before external call` : null;
+    },
+    onViolation: "throw",
+  },
+]);
+```
+
+### `scanShared` — PII detection helper
+
+Walks a shared object and returns fields matching built-in PII patterns
+(email, phone, SSN, IPv4, credit card). Detection-agnostic core — bring your
+own patterns via the inspector `check` function.
+
+```typescript
+import { scanShared } from "flowneer/plugins/compliance";
+
+const hits = scanShared(shared);
+// [{ path: "user.email", pattern: "email", value: "alice@example.com" }]
+```
+
+---
+
+## New plugin: `withFlowAnalyzer` (`plugins/dev/`)
+
+Two tools for understanding flow structure and execution paths.
+
+### `.analyzeFlow()` — static path map
+
+Synchronous walk of `steps[]`; returns a `PathMap` with all nodes, anchor names,
+and a flag indicating whether runtime gotos are possible.
+
+```typescript
+import { withFlowAnalyzer } from "flowneer/plugins/dev";
+
+FlowBuilder.use(withFlowAnalyzer);
+
+const map = flow.analyzeFlow();
+console.log(map.anchors); // ["refine"]
+console.log(map.hasDynamicGotos); // true
+console.log(map.nodes.map((n) => n.label));
+```
+
+### `.withTrace()` — runtime execution trace
+
+Installs `beforeStep`/`afterStep` hooks; returns `{ getTrace(), dispose() }`.
+Composable with `withDryRun` to trace path structure without side effects.
+
+```typescript
+const trace = flow.withTrace();
+await flow.run(shared);
+console.log(trace.getTrace().pathSummary); // ["fetch:user", "enrich", "save"]
+trace.dispose();
+```
+
+---
+
+## New plugin: `JsonFlowBuilder` (`plugins/config/`)
+
+Build and validate `FlowBuilder` instances from a plain JSON configuration.
+Supports all step types (`fn`, `branch`, `loop`, `batch`, `parallel`, `anchor`)
+plus extension via `registerStepBuilder`.
+
+```typescript
+import { JsonFlowBuilder } from "flowneer/plugins/config";
+
+const config = {
+  steps: [
+    { type: "fn", fn: "fetchUser", label: "pii:user", retries: 2 },
+    {
+      type: "branch",
+      router: "route",
+      branches: { pass: "save", fail: "retry" },
+    },
+    { type: "anchor", name: "retry", maxVisits: 3 },
+    { type: "fn", fn: "retryFetch" },
+  ],
+};
+
+// Validate first (returns all errors without throwing)
+const result = JsonFlowBuilder.validate(config, registry);
+if (!result.valid) {
+  result.errors.forEach((e) => console.error(`${e.path}: ${e.message}`));
+}
+
+// Build — throws ConfigValidationError if invalid
+const flow = JsonFlowBuilder.build(config, registry);
+await flow.run(shared);
+```
+
+### Custom step types
+
+```typescript
+JsonFlowBuilder.registerStepBuilder("myStep", (step, flow, registry) => {
+  flow.then(registry[step.fn], { label: step.label });
+});
+```

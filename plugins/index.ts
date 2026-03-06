@@ -40,6 +40,14 @@ export {
   withMocks,
   withStepLimit,
   withAtomicUpdates,
+  withFlowAnalyzer,
+} from "./dev/index";
+export type {
+  PathNode,
+  PathMap,
+  TraceEvent,
+  TraceReport,
+  TraceHandle,
 } from "./dev/index";
 
 // Messaging
@@ -129,3 +137,37 @@ export type { ScoreFn, EvalResult, EvalSummary } from "./eval/index";
 // Graph
 export { withGraph } from "./graph/index";
 export type { GraphNode, GraphEdge } from "./graph/index";
+
+// Compliance
+export {
+  withAuditFlow,
+  withRuntimeCompliance,
+  makeRuntimeCompliancePlugin,
+  ComplianceError,
+  scanShared,
+} from "./compliance/index";
+export type {
+  TaintRule,
+  ViolationAction,
+  ViolationLocation,
+  ComplianceViolation,
+  ComplianceReport,
+  RuntimeInspector,
+  RuntimeComplianceOptions,
+  PiiMatch,
+} from "./compliance/index";
+
+// Config / JSON-driven flows
+export {
+  JsonFlowBuilder,
+  ConfigValidationError,
+  validate,
+} from "./config/index";
+export type {
+  FlowConfig,
+  StepConfig,
+  FnRegistry,
+  ValidationError,
+  ValidationResult,
+  CustomStepBuilder,
+} from "./config/index";
