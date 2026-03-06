@@ -13,4 +13,3 @@ End-to-end examples for common Flowneer patterns. Each recipe is self-contained 
 | [Batch Document Processing](./batch-document-processing.md) | `.batch()`, `.parallel()`, structured output, shared reducer                    |
 | [Human-in-the-loop](./human-in-the-loop.md)                 | `humanNode`, interrupt + resume, approval gates                                 |
 | [Edge Runtime](./edge-runtime.md)                           | CF Workers, Vercel Edge, Deno Deploy — zero-config, streaming, telemetry caveat |
-| [Immer State](./immer-state.md)                             | Structural sharing, immutable snapshots, patches + undo, `stream()` snapshots   |
