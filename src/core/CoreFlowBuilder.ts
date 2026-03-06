@@ -19,6 +19,7 @@ import type {
   NumberOrFn,
   NodeOptions,
   RunOptions,
+  StepFilter,
   StepMeta,
   StreamEvent,
 } from "../types";
@@ -29,6 +30,67 @@ import { buildAnchorMap, resolveNumber, withTimeout } from "./utils";
 // ---------------------------------------------------------------------------
 // Hook cache
 // ---------------------------------------------------------------------------
+
+function matchesFilter(filter: StepFilter, meta: StepMeta): boolean {
+  if (!Array.isArray(filter)) return filter(meta);
+  if (meta.label === undefined) return false;
+  const label = meta.label;
+  return filter.some((pattern) => {
+    if (!pattern.includes("*")) return pattern === label;
+    // Convert glob pattern (* = any substring) to a RegExp
+    const re = new RegExp(
+      "^" +
+        pattern
+          .split("*")
+          .map((s) => s.replace(/[.+?^${}()|[\]\\]/g, "\\$&"))
+          .join(".*") +
+        "$",
+    );
+    return re.test(label);
+  });
+}
+
+/**
+ * Wraps each step-scoped hook in `hooks` so it only fires when `filter` matches.
+ * `wrapStep` and `wrapParallelFn` always call `next()` for non-matching steps
+ * to preserve the middleware chain.
+ * `beforeFlow` / `afterFlow` have no step context and are left unchanged.
+ */
+
+function applyStepFilter<S, P extends Record<string, unknown>>(
+  hooks: Partial<FlowHooks<S, P>>,
+  filter: StepFilter,
+): Partial<FlowHooks<S, P>> {
+  const match = (meta: StepMeta) => matchesFilter(filter, meta);
+
+  // Wrap each step-scoped hook method so it only fires when the filter matches.
+  // For wrapStep and wrapParallelFn, call next() even when not matching to preserve the middleware chain.
+  const wrap = <K extends keyof FlowHooks<S, P>>(
+    key: K,
+    fallback: (
+      ...args: Parameters<NonNullable<FlowHooks<S, P>[K]>>
+    ) => any = () => {},
+  ) => {
+    const orig = hooks[key];
+    if (!orig) return;
+
+    hooks[key] = ((...args: any[]) =>
+      match(args[0])
+        ? (orig as Function)(...args)
+        : fallback(
+            ...(args as Parameters<NonNullable<FlowHooks<S, P>[K]>>),
+          )) as FlowHooks<S, P>[K];
+  };
+
+  // Only wrap step-scoped hooks; beforeFlow/afterFlow have no step context and are left unchanged.
+  wrap("beforeStep");
+  wrap("afterStep");
+  wrap("onError");
+  wrap("wrapStep", (_m, next) => next());
+  wrap("wrapParallelFn", (_m, _fi, next) => next());
+
+  return hooks;
+}
 
 export type ResolvedHooks<S, P extends Record<string, unknown>> = {
   beforeFlow: NonNullable<FlowHooks<S, P>["beforeFlow"]>[];
@@ -146,11 +208,15 @@ export class CoreFlowBuilder<
    * Register lifecycle hooks (called by plugin methods, not by consumers).
    * Returns a dispose function that removes these hooks when called.
    */
-  protected _setHooks(hooks: Partial<FlowHooks<S, P>>): () => void {
-    this._hooksList.push(hooks);
+  protected _setHooks(
+    hooks: Partial<FlowHooks<S, P>>,
+    filter?: StepFilter,
+  ): () => void {
+    const resolved = filter ? applyStepFilter(hooks, filter) : hooks;
+    this._hooksList.push(resolved);
     this._hooksCache = null;
     return () => {
-      const idx = this._hooksList.indexOf(hooks);
+      const idx = this._hooksList.indexOf(resolved);
       if (idx !== -1) this._hooksList.splice(idx, 1);
       this._hooksCache = null;
     };
@@ -185,8 +251,8 @@ export class CoreFlowBuilder<
    * Register lifecycle hooks directly on this instance.
    * Returns a dispose function that removes these hooks when called.
    */
-  addHooks(hooks: Partial<FlowHooks<S, P>>): () => void {
-    return this._setHooks(hooks);
+  addHooks(hooks: Partial<FlowHooks<S, P>>, filter?: StepFilter): () => void {
+    return this._setHooks(hooks, filter);
   }
 
   // -------------------------------------------------------------------------

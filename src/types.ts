@@ -85,6 +85,30 @@ export interface StepMeta {
   label?: string;
 }
 
+/**
+ * Narrows which steps a hook fires for.
+ *
+ * - **String array** — only steps whose `label` matches are affected.
+ *   Entries are exact matches unless they contain `*`, which acts as a
+ *   wildcard matching any substring (glob-style).
+ *   e.g. `["llm:*"]` matches `"llm:summarise"`, `"llm:embed"`, etc.
+ * - **Predicate** — full control; return `true` to match.
+ *
+ * Unmatched `wrapStep`/`wrapParallelFn` hooks still call `next()` automatically
+ * so the middleware chain is never broken.
+ *
+ * @example
+ * // Exact labels
+ * flow.withRateLimit({ intervalMs: 1000 }, ["callLlm", "callEmbeddings"]);
+ *
+ * // Wildcard — any step whose label starts with "llm:"
+ * flow.withRateLimit({ intervalMs: 1000 }, ["llm:*"]);
+ *
+ * // Custom predicate
+ * flow.addHooks({ beforeStep: log }, (meta) => meta.type === "fn");
+ */
+export type StepFilter = string[] | ((meta: StepMeta) => boolean);
+
 /** Lifecycle hooks that plugins can register. */
 export interface FlowHooks<
   S = any,

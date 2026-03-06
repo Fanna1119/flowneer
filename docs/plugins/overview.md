@@ -13,21 +13,24 @@ const flow = new FlowBuilder<MyState>().withTiming().startWith(myStep);
 
 ## Plugin Categories
 
-| Category           | Plugins                                                                                                                                       |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| **LLM**            | `withCostTracker`, `withRateLimit`, `withStructuredOutput`, `withTokenBudget`                                                                 |
-| **Memory**         | `withMemory`, `BufferWindowMemory`, `KVMemory`, `SummaryMemory`                                                                               |
-| **Observability**  | `withCallbacks`, `withHistory`, `withInterrupts`, `withTiming`, `withVerbose`                                                                 |
-| **Persistence**    | `withCheckpoint`, `withAuditLog`, `withReplay`, `withVersionedCheckpoint`                                                                     |
-| **Resilience**     | `withCircuitBreaker`, `withTimeout`, `withFallback`, `withCycles`                                                                             |
-| **Dev / Testing**  | `withDryRun`, `withMocks`, `withStepLimit`, `parallelAtomic`                                                                                  |
-| **Agent**          | `withReActLoop`, `humanNode`, `resumeFlow`, `tool`, `createAgent`, `supervisorCrew`, `sequentialCrew`, `hierarchicalCrew`, `roundRobinDebate` |
-| **Tools**          | `withTools`, `ToolRegistry`, `executeTool`, `executeTools`                                                                                    |
-| **Messaging**      | `withChannels`, `withStream`, `emit`, `sendTo`, `receiveFrom`                                                                                 |
-| **Output Parsers** | `parseJsonOutput`, `parseListOutput`, `parseRegexOutput`, `parseMarkdownTable`                                                                |
-| **Telemetry**      | `TelemetryDaemon`, `consoleExporter`                                                                                                          |
-| **Graph**          | `addNode`, `addEdge`, `compile`, `withExportGraph`, `withExportFlow`                                                                          |
-| **Eval**           | `runEvalSuite`, `exactMatch`, `f1Score`, `retrievalPrecision`                                                                                 |
+| Category                | Plugins                                                                                                                                       |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **LLM**                 | `withCostTracker`, `withRateLimit`, `withStructuredOutput`, `withTokenBudget`                                                                 |
+| **Memory**              | `withMemory`, `BufferWindowMemory`, `KVMemory`, `SummaryMemory`                                                                               |
+| **Observability**       | `withCallbacks`, `withHistory`, `withInterrupts`, `withTiming`, `withVerbose`                                                                 |
+| **Persistence**         | `withCheckpoint`, `withAuditLog`, `withReplay`, `withVersionedCheckpoint`                                                                     |
+| **Resilience**          | `withCircuitBreaker`, `withTimeout`, `withFallback`, `withCycles`                                                                             |
+| **Dev / Testing**       | `withDryRun`, `withMocks`, `withStepLimit`, `parallelAtomic`                                                                                  |
+| **Agent**               | `withReActLoop`, `humanNode`, `resumeFlow`, `tool`, `createAgent`, `supervisorCrew`, `sequentialCrew`, `hierarchicalCrew`, `roundRobinDebate` |
+| **Tools**               | `withTools`, `ToolRegistry`, `executeTool`, `executeTools`                                                                                    |
+| **Messaging**           | `withChannels`, `withStream`, `emit`, `sendTo`, `receiveFrom`                                                                                 |
+| **Output Parsers**      | `parseJsonOutput`, `parseListOutput`, `parseRegexOutput`, `parseMarkdownTable`                                                                |
+| **Telemetry**           | `TelemetryDaemon`, `consoleExporter`                                                                                                          |
+| **Graph**               | `addNode`, `addEdge`, `compile`, `withExportGraph`, `withExportFlow`                                                                          |
+| **Eval**                | `runEvalSuite`, `exactMatch`, `f1Score`, `retrievalPrecision`                                                                                 |
+| **Compliance**          | `withAuditFlow`, `withRuntimeCompliance`, `scanShared`                                                                                        |
+| **Dev / Testing** (new) | `withFlowAnalyzer` (`analyzeFlow`, `withTrace`)                                                                                               |
+| **Config**              | `JsonFlowBuilder` (`build`, `validate`, `registerStepBuilder`)                                                                                |
 
 ## Import Paths
 
@@ -113,6 +116,19 @@ import { withExportGraph, withExportFlow } from "flowneer/plugins/graph";
 
 // Eval
 import { runEvalSuite, exactMatch, f1Score } from "flowneer/plugins/eval";
+
+// Compliance
+import {
+  withAuditFlow,
+  withRuntimeCompliance,
+  scanShared,
+} from "flowneer/plugins/compliance";
+
+// Dev — analysis
+import { withFlowAnalyzer } from "flowneer/plugins/dev";
+
+// Config
+import { JsonFlowBuilder } from "flowneer/plugins/config";
 ```
 
 ## Shared State Conventions

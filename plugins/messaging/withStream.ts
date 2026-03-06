@@ -22,7 +22,11 @@ declare module "../../Flowneer" {
     withStream<T = unknown>(subscriber: StreamSubscriber<T>): this;
   }
 }
-
+/**
+ * @deprecated The `withStream` plugin is deprecated and will be removed in a future release. Use the built-in streaming capabilities of Flowneer instead, which allow you to emit chunks directly from any step without needing to register a subscriber first.
+ * Plugin that adds streaming capabilities to FlowBuilder.
+ * Use `FlowBuilder.use(withStream)` to register the plugin before creating any
+ */
 export const withStream: FlowneerPlugin = {
   withStream(this: FlowBuilder<any, any>, subscriber: StreamSubscriber) {
     (this as any)._setHooks({

@@ -4,6 +4,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { FlowBuilder } from "../Flowneer";
+import { CoreFlowBuilder } from "../src/core/CoreFlowBuilder";
 
 // ── Plugins we need to exercise ─────────────────────────────────────────────
 import { withVerbose } from "../plugins/observability/withVerbose";
@@ -28,6 +29,195 @@ FlowBuilder.use(withGraph);
 FlowBuilder.use(withHumanNode);
 FlowBuilder.use(withReActLoop);
 FlowBuilder.use(withTools);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CoreFlowBuilder — static use() (lines 228-230)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("CoreFlowBuilder.use", () => {
+  test("copies plugin method onto CoreFlowBuilder.prototype", () => {
+    const marker = Symbol("coreUseTest");
+    CoreFlowBuilder.use({ coreUseMarker: () => marker });
+    const inst = new CoreFlowBuilder();
+    expect((inst as any).coreUseMarker()).toBe(marker);
+    // Clean up to avoid polluting other tests
+    delete (CoreFlowBuilder.prototype as any).coreUseMarker;
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CoreFlowBuilder — addHooks with StepFilter (lines 34-49, 60-91)
+// matchesFilter and applyStepFilter
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("addHooks() with StepFilter", () => {
+  test("array filter — exact label match fires, non-matching label skipped", async () => {
+    const fired: string[] = [];
+    const flow = new FlowBuilder<any>()
+      .then(async () => {}, { label: "step:a" })
+      .then(async () => {}, { label: "step:b" })
+      .then(async () => {}, { label: "step:c" });
+
+    flow.addHooks(
+      {
+        beforeStep: (meta) => {
+          fired.push(meta.label!);
+        },
+      },
+      ["step:b"],
+    );
+
+    await flow.run({});
+    expect(fired).toEqual(["step:b"]);
+  });
+
+  test("array filter — glob wildcard matches multiple labels", async () => {
+    const fired: string[] = [];
+    const flow = new FlowBuilder<any>()
+      .then(async () => {}, { label: "llm:think" })
+      .then(async () => {}, { label: "db:write" })
+      .then(async () => {}, { label: "llm:summarize" });
+
+    flow.addHooks(
+      {
+        beforeStep: (meta) => {
+          fired.push(meta.label!);
+        },
+      },
+      ["llm:*"],
+    );
+
+    await flow.run({});
+    expect(fired).toEqual(["llm:think", "llm:summarize"]);
+  });
+
+  test("array filter — unlabelled steps are skipped by array filter", async () => {
+    const fired: number[] = [];
+    const flow = new FlowBuilder<any>()
+      .then(async () => {}) // no label
+      .then(async () => {}, { label: "tagged" })
+      .then(async () => {}); // no label
+
+    flow.addHooks(
+      {
+        beforeStep: (meta) => {
+          fired.push(meta.index);
+        },
+      },
+      ["tagged"],
+    );
+
+    await flow.run({});
+    expect(fired).toEqual([1]);
+  });
+
+  test("predicate filter — only fires when predicate returns true", async () => {
+    const fired: string[] = [];
+    const flow = new FlowBuilder<any>()
+      .then(async () => {}, { label: "pii:user" })
+      .then(async () => {}, { label: "safe:step" })
+      .then(async () => {}, { label: "pii:address" });
+
+    flow.addHooks(
+      {
+        beforeStep: (meta) => {
+          fired.push(meta.label!);
+        },
+      },
+      (meta) => meta.label?.startsWith("pii:") ?? false,
+    );
+
+    await flow.run({});
+    expect(fired).toEqual(["pii:user", "pii:address"]);
+  });
+
+  test("wrapStep with filter — non-matching step still calls next()", async () => {
+    const calls: string[] = [];
+    const flow = new FlowBuilder<any>()
+      .then(
+        async (s) => {
+          s.a = 1;
+        },
+        { label: "step:a" },
+      )
+      .then(
+        async (s) => {
+          s.b = 2;
+        },
+        { label: "step:b" },
+      );
+
+    flow.addHooks(
+      {
+        wrapStep: async (meta, next, shared: any) => {
+          calls.push(meta.label!);
+          shared.wrapped = true;
+          await next();
+        },
+      },
+      ["step:a"],
+    );
+
+    const shared: any = {};
+    await flow.run(shared);
+
+    // wrapStep fired only for step:a
+    expect(calls).toEqual(["step:a"]);
+    // step:b still ran (next() was called by fallback for non-matching)
+    expect(shared.b).toBe(2);
+  });
+
+  test("afterStep and onError filters work correctly", async () => {
+    const afterFired: string[] = [];
+    const errorFired: string[] = [];
+
+    const flow = new FlowBuilder<any>().then(
+      async () => {
+        throw new Error("boom");
+      },
+      { label: "bad:step" },
+    );
+
+    flow.addHooks(
+      {
+        afterStep: (meta) => {
+          afterFired.push(meta.label!);
+        },
+        onError: (meta) => {
+          errorFired.push(meta.label!);
+        },
+      },
+      ["bad:step"],
+    );
+
+    await expect(flow.run({})).rejects.toThrow();
+    expect(afterFired).toHaveLength(0); // afterStep not called when step throws
+    expect(errorFired).toEqual(["bad:step"]);
+  });
+
+  test("dispose removes filtered hooks", async () => {
+    const fired: string[] = [];
+    const flow = new FlowBuilder<any>().then(async () => {}, {
+      label: "step:x",
+    });
+
+    const dispose = flow.addHooks(
+      {
+        beforeStep: (meta) => {
+          fired.push(meta.label!);
+        },
+      },
+      ["step:x"],
+    );
+
+    await flow.run({});
+    expect(fired).toHaveLength(1);
+
+    dispose();
+    await flow.run({});
+    expect(fired).toHaveLength(1); // unchanged after dispose
+  });
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // withVerbose
