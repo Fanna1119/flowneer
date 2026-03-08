@@ -17,8 +17,7 @@ import { FlowBuilder } from "../../Flowneer";
 import { withTokenBudget, withCostTracker } from "../../plugins/llm";
 import { callLlmWithUsage } from "../../utils/callLlm";
 
-FlowBuilder.use(withTokenBudget);
-FlowBuilder.use(withCostTracker);
+const BudgetFlow = FlowBuilder.extend([withTokenBudget, withCostTracker]);
 
 // ── Pricing constants ────────────────────────────────────────────────────────
 
@@ -52,7 +51,7 @@ interface DocState {
 
 const TOKEN_BUDGET = 5_000; // abort if we hit this before a step
 
-const flow = new FlowBuilder<DocState>()
+const flow = new BudgetFlow<DocState>()
   .withTokenBudget(TOKEN_BUDGET)
   .withCostTracker()
 

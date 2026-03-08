@@ -22,7 +22,7 @@ import {
 } from "../../plugins/compliance";
 import type { RuntimeInspector } from "../../plugins/compliance";
 
-FlowBuilder.use(withRuntimeCompliance);
+const ComplianceFlow = FlowBuilder.extend([withRuntimeCompliance]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -64,7 +64,7 @@ separator('Scenario 1 — onViolation: "throw"');
     sent?: boolean;
   }
 
-  const flow = new FlowBuilder<State>()
+  const flow = new ComplianceFlow<State>()
     .then(
       async (s) => {
         // Step that loads PII into shared state
@@ -105,7 +105,7 @@ separator('Scenario 2 — onViolation: "warn"');
     sent?: boolean;
   }
 
-  const flow = new FlowBuilder<State>()
+  const flow = new ComplianceFlow<State>()
     .then(
       async (s) => {
         s.user = { phone: "555-867-5309" };
@@ -142,7 +142,7 @@ separator('Scenario 3 — onViolation: "record"');
   }
 
   // Two external steps, both flagged
-  const flow = new FlowBuilder<State>()
+  const flow = new ComplianceFlow<State>()
     .then(
       async (s) => {
         s.user = { email: "bob@corp.com", ssn: "987-65-4321" };
@@ -190,7 +190,7 @@ separator("Scenario 4 — no PII, all steps pass cleanly");
     result?: string;
   }
 
-  const flow = new FlowBuilder<State>()
+  const flow = new ComplianceFlow<State>()
     .then(
       async (s) => {
         s.userId = "usr_abc123"; // no PII

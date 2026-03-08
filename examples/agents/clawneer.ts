@@ -46,8 +46,7 @@ import {
   consoleExporter,
 } from "../../plugins/telemetry/telemetry";
 
-FlowBuilder.use(withRateLimit);
-FlowBuilder.use(withCircuitBreaker);
+const ClawneerFlow = FlowBuilder.extend([withRateLimit, withCircuitBreaker]);
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -362,7 +361,7 @@ interface AgentState {
 // Flowneer agent flow
 // ─────────────────────────────────────────────────────────────────────────────
 
-const agentFlow = new FlowBuilder<AgentState>()
+const agentFlow = new ClawneerFlow<AgentState>()
   .withRateLimit({ intervalMs: 500 })
   .withCircuitBreaker({ maxFailures: 3, resetMs: 15_000 })
 

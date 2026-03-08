@@ -248,7 +248,7 @@ export const withFlowAnalyzer: FlowneerPlugin = {
     const events: TraceEvent[] = [];
     const starts = new Map<number, number>();
 
-    const dispose = (this as any).addHooks({
+    const dispose = (this as any)._setHooks({
       beforeStep: (meta: StepMeta) => {
         starts.set(meta.index, Date.now());
       },

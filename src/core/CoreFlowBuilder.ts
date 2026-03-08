@@ -15,7 +15,6 @@
 import type {
   FlowHooks,
   FlowneerPlugin,
-  InstancePlugin,
   NumberOrFn,
   NodeOptions,
   RunOptions,
@@ -223,36 +222,36 @@ export class CoreFlowBuilder<
   }
 
   /**
-   * Register a plugin — copies its methods onto `FlowBuilder.prototype`.
-   */
-  static use(plugin: FlowneerPlugin): void {
-    for (const [name, fn] of Object.entries(plugin)) {
-      (CoreFlowBuilder.prototype as any)[name] = fn;
-    }
-  }
-
-  /**
-   * Apply one or more instance-scoped plugins to this builder.
-   * Each plugin is called immediately; plugins are applied in array order
-   * so the first plugin's hooks wrap the later ones.
+   * Create a plugin-scoped subclass.
+   *
+   * Returns a new class that extends the caller (polymorphic — works on
+   * `FlowBuilder`, `CoreFlowBuilder`, or any subclass) with only the
+   * supplied plugins' methods mixed onto the subclass prototype.
+   * The base class prototype is never touched, so different `extend()`
+   * calls are fully isolated from each other.
+   *
+   * Plugins are applied in array order; later entries can override earlier
+   * ones for the same method name.
    *
    * @example
-   * const flow = new FlowBuilder<MyState>()
-   *   .with([withTiming(), withRateLimit({ rps: 10 })])
-   *   .then(myStep);
+   * const AppFlow = FlowBuilder.extend([withTiming, withRateLimit]);
+   * const flow = new AppFlow<MyState>().then(myStep);
+   *
+   * // Chains: create a further sub-subclass
+   * const TracedAppFlow = AppFlow.extend([withTrace]);
    */
-  with(plugins: InstancePlugin<S, P> | Array<InstancePlugin<S, P>>): this {
-    const list = Array.isArray(plugins) ? plugins : [plugins];
-    for (const plugin of list) plugin(this as any);
-    return this;
-  }
-
-  /**
-   * Register lifecycle hooks directly on this instance.
-   * Returns a dispose function that removes these hooks when called.
-   */
-  addHooks(hooks: Partial<FlowHooks<S, P>>, filter?: StepFilter): () => void {
-    return this._setHooks(hooks, filter);
+  static extend<T extends typeof CoreFlowBuilder>(
+    this: T,
+    plugins: FlowneerPlugin[],
+  ): T {
+    // Anonymous subclass so each extend() call produces a distinct prototype
+    const Extended = class extends (this as any) {} as unknown as T;
+    for (const plugin of plugins) {
+      for (const [name, fn] of Object.entries(plugin)) {
+        (Extended.prototype as any)[name] = fn;
+      }
+    }
+    return Extended;
   }
 
   // -------------------------------------------------------------------------

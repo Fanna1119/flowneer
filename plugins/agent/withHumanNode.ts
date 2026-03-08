@@ -2,8 +2,8 @@
 // withHumanNode — ergonomic human-in-the-loop pause / resume
 // ---------------------------------------------------------------------------
 
-import { InterruptError, FlowBuilder } from "../../Flowneer";
-import type { FlowneerPlugin, NodeFn } from "../../Flowneer";
+import { InterruptError } from "../../Flowneer";
+import type { FlowBuilder, FlowneerPlugin, NodeFn } from "../../Flowneer";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -119,8 +119,7 @@ export async function resumeFlow<S extends Record<string, any>>(
     // Dynamically apply replay to skip completed steps
     // We import lazily so the persistence plugin is optional
     const { withReplay } = await import("../persistence/withReplay");
-    FlowBuilder.use(withReplay);
-    (flow as any).withReplay(fromStep);
+    withReplay.withReplay!.call(flow as any, fromStep);
   }
 
   return flow.run(merged);

@@ -18,8 +18,7 @@ import type { Tool, ToolRegistry } from "../../plugins/tools";
 import type { ToolCall, ToolResult } from "../../plugins/tools/withTools";
 import type { ThinkResult } from "./withReActLoop";
 
-FlowBuilder.use(withTools);
-FlowBuilder.use(withReActLoop);
+const AgentFlow = FlowBuilder.extend([withTools, withReActLoop]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LLM adapter types
@@ -130,7 +129,7 @@ export function createAgent(
   const { tools, callLlm, systemPrompt, maxIterations = 10 } = options;
 
   return (
-    new FlowBuilder<AgentState>()
+    new AgentFlow<AgentState>()
       // 1. Register tools so shared.__tools is available to all steps.
       .withTools(tools)
 

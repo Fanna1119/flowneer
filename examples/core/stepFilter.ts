@@ -17,7 +17,7 @@
 import { FlowBuilder } from "../../Flowneer";
 import { withRateLimit } from "../../plugins/llm";
 
-FlowBuilder.use(withRateLimit);
+const RateLimitFlow = FlowBuilder.extend([withRateLimit]);
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -63,7 +63,7 @@ interface PipelineState {
 separator("Pattern 1 — Array filter: rate-limit only LLM steps");
 
 {
-  const flow = new FlowBuilder<PipelineState>()
+  const flow = new RateLimitFlow<PipelineState>()
     // 2000 ms minimum gap, but ONLY between steps labelled "summarise" or "sentiment"
     .withRateLimit({ intervalMs: 2000 }, ["summarise", "sentiment"])
 
@@ -121,7 +121,7 @@ separator("Pattern 1 — Array filter: rate-limit only LLM steps");
 separator('Pattern 2 — Wildcard filter: ["llm:*"]');
 
 {
-  const flow = new FlowBuilder<PipelineState>()
+  const flow = new RateLimitFlow<PipelineState>()
     .withRateLimit({ intervalMs: 300 }, ["llm:*"])
 
     .startWith(
@@ -157,14 +157,14 @@ separator('Pattern 2 — Wildcard filter: ["llm:*"]');
 }
 
 // =============================================================================
-// Pattern 3 — addHooks with a filter
+// Pattern 3 — _setHooks() with a filter
 // =============================================================================
-// The same StepFilter parameter is available on the lower-level `addHooks`
+// The same StepFilter parameter is available on the lower-level `_setHooks()`
 // API, letting you scope any custom hook to a subset of steps without
 // writing the meta.label check yourself inside the hook body.
 // =============================================================================
 
-separator("Pattern 3 — addHooks with a filter");
+separator("Pattern 3 — _setHooks() with a filter");
 
 {
   const timings: Record<string, number> = {};
@@ -172,7 +172,7 @@ separator("Pattern 3 — addHooks with a filter");
   const flow = new FlowBuilder<PipelineState>();
 
   // Only record timing for the two LLM steps — ignore cheap prep steps
-  flow.addHooks(
+  (flow as any)._setHooks(
     {
       beforeStep: (meta) => {
         timings[meta.label!] = Date.now();

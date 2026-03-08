@@ -186,11 +186,12 @@ export class JsonFlowBuilder {
   static build<S = any>(
     config: FlowConfig,
     registry: FnRegistry,
+    FlowClass: new () => FlowBuilder<S> = FlowBuilder as any,
   ): FlowBuilder<S> {
     const result = validate(config, registry, new Set(_customBuilders.keys()));
     if (!result.valid) throw new ConfigValidationError(result.errors);
 
-    const flow = new FlowBuilder<S>();
+    const flow = new FlowClass();
     applySteps(flow as any, config.steps, registry, true);
     return flow;
   }

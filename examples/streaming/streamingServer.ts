@@ -33,7 +33,7 @@ import { withTiming } from "../../plugins/observability";
 // ── Plugin registration ───────────────────────────────────────────────────────
 // Only withTiming is registered. withStream is not used at all.
 
-FlowBuilder.use(withTiming);
+const TimingFlow = FlowBuilder.extend([withTiming]);
 
 // ── Stream chunk types ────────────────────────────────────────────────────────
 
@@ -210,7 +210,7 @@ async function* finalise(s: DocState) {
 // No subscriber callback — callers iterate flow.stream() directly.
 
 function buildFlow() {
-  return new FlowBuilder<DocState>()
+  return new TimingFlow<DocState>()
     .withTiming()
     .startWith(validateAndStart)
     .then(splitIntoSections)

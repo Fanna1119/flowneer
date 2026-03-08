@@ -26,8 +26,7 @@ import { withFlowAnalyzer } from "../../plugins/dev/withFlowAnalyzer";
 import { withDryRun } from "../../plugins/dev/withDryRun";
 import type { PathMap, TraceReport } from "../../plugins/dev/withFlowAnalyzer";
 
-FlowBuilder.use(withFlowAnalyzer);
-FlowBuilder.use(withDryRun);
+const AnalyzerFlow = FlowBuilder.extend([withFlowAnalyzer, withDryRun]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -82,7 +81,7 @@ function printTrace(report: TraceReport, indent = "  ") {
 
 separator("Flow 1 — linear chain (static analysis)");
 
-const linearFlow = new FlowBuilder<{ count: number }>()
+const linearFlow = new AnalyzerFlow<{ count: number }>()
   .then(
     async (s) => {
       s.count = 0;
@@ -130,7 +129,7 @@ interface ClassifyState {
   result?: string;
 }
 
-const branchFlow = new FlowBuilder<ClassifyState>()
+const branchFlow = new AnalyzerFlow<ClassifyState>()
   .then(
     async (s) => {
       s.input = "error: disk full";
@@ -179,7 +178,7 @@ interface RetryState {
   done: boolean;
 }
 
-const loopFlow = new FlowBuilder<RetryState>()
+const loopFlow = new AnalyzerFlow<RetryState>()
   .then(
     async (s) => {
       s.attempts = 0;
@@ -226,7 +225,7 @@ separator("Flow 4 — dry-run + trace (no side effects)");
 
 let sideEffectFired = false;
 
-const riskyFlow = new FlowBuilder<any>()
+const riskyFlow = new AnalyzerFlow<any>()
   .then(
     async (s) => {
       s.prepared = true;
@@ -257,7 +256,7 @@ trace4.dispose();
 
 separator("Flow 5 — parallel lanes (static analysis)");
 
-const parallelFlow = new FlowBuilder<{ a?: number; b?: number; c?: number }>()
+const parallelFlow = new AnalyzerFlow<{ a?: number; b?: number; c?: number }>()
   .then(async () => {}, { label: "start" })
   .parallel([
     async function fetchA(s) {

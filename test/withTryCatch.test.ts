@@ -6,14 +6,14 @@ import { describe, expect, test } from "bun:test";
 import { FlowBuilder, FlowError, fragment } from "../Flowneer";
 import { withTryCatch } from "../plugins/resilience/withTryCatch";
 
-FlowBuilder.use(withTryCatch);
+const TC = FlowBuilder.extend([withTryCatch]);
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 function makeFlow<S extends object>() {
-  return new FlowBuilder<S>();
+  return new TC<S>();
 }
 
 // ---------------------------------------------------------------------------
@@ -386,13 +386,13 @@ describe("withTryCatch — FlowError from inner steps", () => {
 describe("withTryCatch — misuse errors", () => {
   test(".catch() without prior .try() throws synchronously", () => {
     expect(() => {
-      (new FlowBuilder() as any).catch(fragment());
+      (new TC() as any).catch(fragment());
     }).toThrow(".catch() must be called immediately after .try()");
   });
 
   test(".finally() without prior .try() throws synchronously", () => {
     expect(() => {
-      (new FlowBuilder() as any).finally(fragment());
+      (new TC() as any).finally(fragment());
     }).toThrow(".finally() must be called after .try()");
   });
 });

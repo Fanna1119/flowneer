@@ -57,7 +57,7 @@ const metricsPlugin: FlowneerPlugin = {
     return this;
   },
 };
-FlowBuilder.use(metricsPlugin);
+const MetricsFlow = FlowBuilder.extend([metricsPlugin]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. Hook caching — large batch with all hook types registered
@@ -75,7 +75,7 @@ async function demoBatchWithHooks() {
   const N = 50_000;
   const stepCallCount = { value: 0 };
 
-  const flow = new FlowBuilder<BatchState>()
+  const flow = new MetricsFlow<BatchState>()
     .withMetrics(() => {}) // registers all 7 hook types
     .batch(
       (s) => s.items,

@@ -83,9 +83,11 @@ const counterPlugin: FlowneerPlugin = {
     return this;
   },
 };
-FlowBuilder.use(counterPlugin);
-FlowBuilder.use(withCheckpoint);
-FlowBuilder.use(withVersionedCheckpoint);
+const PerfFlow = FlowBuilder.extend([
+  counterPlugin,
+  withCheckpoint,
+  withVersionedCheckpoint,
+]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. Nested batch-in-batch  (200 outer × 500 inner = 100k items total)
@@ -105,7 +107,7 @@ async function demoNestedBatch() {
   const INNER = 500;
   const counters = { steps: 0, wraps: 0, parallel: 0 };
 
-  const flow = new FlowBuilder<NestedBatchState>().withCounter(counters).batch(
+  const flow = new PerfFlow<NestedBatchState>().withCounter(counters).batch(
     (s) => s.outerItems,
     (outer) =>
       outer

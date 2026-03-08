@@ -13,7 +13,7 @@
 
 import { registerBuiltinSteps } from "./core/steps/index";
 import { CoreFlowBuilder } from "./core/CoreFlowBuilder";
-import type { FlowneerPlugin, NodeFn, NodeOptions } from "./types";
+import type { NodeFn, NodeOptions } from "./types";
 import type { Step } from "./steps";
 
 registerBuiltinSteps();
@@ -33,19 +33,6 @@ export class FlowBuilder<
   S = any,
   P extends Record<string, unknown> = Record<string, unknown>,
 > extends CoreFlowBuilder<S, P> {
-  /**
-   * Register a plugin — copies its methods onto `FlowBuilder.prototype`.
-   *
-   * Plugins should also call `FlowBuilder.use()` (not just `CoreFlowBuilder.use()`)
-   * so TypeScript module-augmentation on `interface FlowBuilder` resolves
-   * correctly and the method appears on `FlowBuilder` instances specifically.
-   */
-  static override use(plugin: FlowneerPlugin): void {
-    for (const [name, fn] of Object.entries(plugin)) {
-      (FlowBuilder.prototype as any)[name] = fn;
-    }
-  }
-
   // -------------------------------------------------------------------------
   // Builder API
   // -------------------------------------------------------------------------

@@ -18,7 +18,7 @@ import { FlowBuilder } from "../../Flowneer";
 import { withAuditFlow } from "../../plugins/compliance";
 import type { TaintRule } from "../../plugins/compliance";
 
-FlowBuilder.use(withAuditFlow);
+const AuditFlow = FlowBuilder.extend([withAuditFlow]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -59,7 +59,7 @@ const PII_RULE: TaintRule = {
 
 separator("Scenario 1 — PASS: external step precedes PII fetch");
 
-const safeFlow = new FlowBuilder<any>()
+const safeFlow = new AuditFlow<any>()
   .then(async () => {}, { label: "external:log-request" }) // sink first
   .then(
     async (s) => {
@@ -78,7 +78,7 @@ printReport(report1, "safeFlow");
 
 separator("Scenario 2 — FAIL: PII data flows to external endpoint");
 
-const leakyFlow = new FlowBuilder<any>()
+const leakyFlow = new AuditFlow<any>()
   .then(
     async (s) => {
       s.user = { email: "bob@example.com", ssn: "123-45-6789" };
@@ -114,7 +114,7 @@ const BILLING_RULE: TaintRule = {
   message: "Billing PII must not appear in external audit logs",
 };
 
-const billingFlow = new FlowBuilder<any>()
+const billingFlow = new AuditFlow<any>()
   .then(
     async (s) => {
       s.card = "4111-1111-1111-1111";

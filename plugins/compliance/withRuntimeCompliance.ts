@@ -12,7 +12,6 @@ import type {
   FlowneerPlugin,
   StepFilter,
   StepMeta,
-  InstancePlugin,
 } from "../../Flowneer";
 import { FlowError } from "../../Flowneer";
 import type { ViolationAction } from "./withAuditFlow";
@@ -127,11 +126,11 @@ declare module "../../Flowneer" {
 export function makeRuntimeCompliancePlugin<S>(
   inspectors: RuntimeInspector<S>[],
   options: RuntimeComplianceOptions = {},
-): InstancePlugin<S, any> {
+): (flow: FlowBuilder<S, any>) => void {
   const defaultAction: ViolationAction = options.defaultAction ?? "throw";
 
   return (flow) => {
-    flow.addHooks({
+    (flow as any)._setHooks({
       wrapStep: async (
         meta: StepMeta,
         next: () => Promise<void>,
@@ -174,7 +173,7 @@ export const withRuntimeCompliance: FlowneerPlugin = {
     inspectors: RuntimeInspector<any>[],
     options?: RuntimeComplianceOptions,
   ) {
-    this.with(makeRuntimeCompliancePlugin(inspectors, options));
+    makeRuntimeCompliancePlugin(inspectors, options)(this as any);
     return this;
   },
 };

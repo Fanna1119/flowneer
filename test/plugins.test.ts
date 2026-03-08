@@ -36,26 +36,28 @@ import {
   peekChannel,
 } from "../plugins/messaging";
 
-FlowBuilder.use(withTiming);
-FlowBuilder.use(withHistory);
-FlowBuilder.use(withVerbose);
-FlowBuilder.use(withInterrupts);
-FlowBuilder.use(withFallback);
-FlowBuilder.use(withCircuitBreaker);
-FlowBuilder.use(withTimeout);
-FlowBuilder.use(withCycles);
-FlowBuilder.use(withCheckpoint);
-FlowBuilder.use(withAuditLog);
-FlowBuilder.use(withReplay);
-FlowBuilder.use(withVersionedCheckpoint);
-FlowBuilder.use(withTokenBudget);
-FlowBuilder.use(withCostTracker);
-FlowBuilder.use(withRateLimit);
-FlowBuilder.use(withDryRun);
-FlowBuilder.use(withMocks);
-FlowBuilder.use(withStepLimit);
-FlowBuilder.use(withAtomicUpdates);
-FlowBuilder.use(withChannels);
+const P = FlowBuilder.extend([
+  withTiming,
+  withHistory,
+  withVerbose,
+  withInterrupts,
+  withFallback,
+  withCircuitBreaker,
+  withTimeout,
+  withCycles,
+  withCheckpoint,
+  withAuditLog,
+  withReplay,
+  withVersionedCheckpoint,
+  withTokenBudget,
+  withCostTracker,
+  withRateLimit,
+  withDryRun,
+  withMocks,
+  withStepLimit,
+  withAtomicUpdates,
+  withChannels,
+]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // beforeFlow hook
@@ -73,8 +75,8 @@ describe("beforeFlow hook", () => {
         return this;
       },
     };
-    FlowBuilder.use(plugin);
-    await (new FlowBuilder() as any)
+    const BeforeFlowExt = FlowBuilder.extend([plugin]);
+    await (new BeforeFlowExt() as any)
       .withBeforeFlow()
       .startWith(async () => {})
       .run({});
@@ -100,8 +102,8 @@ describe("wrapStep hook", () => {
         return this;
       },
     };
-    FlowBuilder.use(plugin);
-    await (new FlowBuilder() as any)
+    const WrapExt = FlowBuilder.extend([plugin]);
+    await (new WrapExt() as any)
       .withWrap()
       .startWith(async () => {
         ran.push(true);
@@ -122,8 +124,8 @@ describe("wrapStep hook", () => {
         return this;
       },
     };
-    FlowBuilder.use(plugin);
-    await (new FlowBuilder() as any)
+    const SkipExt = FlowBuilder.extend([plugin]);
+    await (new SkipExt() as any)
       .withSkip()
       .startWith(async () => {
         ran.push(true);
@@ -156,8 +158,8 @@ describe("wrapStep hook", () => {
         return this;
       },
     };
-    FlowBuilder.use(plugin);
-    await (new FlowBuilder() as any)
+    const WrapABExt = FlowBuilder.extend([plugin]);
+    await (new WrapABExt() as any)
       .withWrapA()
       .withWrapB()
       .startWith(async () => {
@@ -181,7 +183,7 @@ describe("wrapStep hook", () => {
 describe("withTiming", () => {
   test("populates __timings with a non-negative ms duration for each step", async () => {
     const s: any = {};
-    await (new FlowBuilder<any>() as any)
+    await (new P<any>() as any)
       .withTiming()
       .startWith(async () => {})
       .then(async () => {})
@@ -193,7 +195,7 @@ describe("withTiming", () => {
 
   test("__timings reflects actual elapsed time (rough check)", async () => {
     const s: any = {};
-    await (new FlowBuilder<any>() as any)
+    await (new P<any>() as any)
       .withTiming()
       .startWith(async () => {
         await new Promise((r) => setTimeout(r, 30));
@@ -210,7 +212,7 @@ describe("withTiming", () => {
 describe("withHistory", () => {
   test("appends a snapshot entry after each step", async () => {
     const s: any = { value: 0 };
-    await (new FlowBuilder<any>() as any)
+    await (new P<any>() as any)
       .withHistory()
       .startWith(async (s: any) => {
         s.value = 1;
@@ -227,7 +229,7 @@ describe("withHistory", () => {
 
   test("snapshot does not include __history (avoids circular growth)", async () => {
     const s: any = {};
-    await (new FlowBuilder<any>() as any)
+    await (new P<any>() as any)
       .withHistory()
       .startWith(async () => {})
       .run(s);
@@ -243,7 +245,7 @@ describe("withFallback", () => {
   test("runs fallback when a step throws, flow continues without error", async () => {
     const s: any = { result: "" };
     await expect(
-      (new FlowBuilder<any>() as any)
+      (new P<any>() as any)
         .withFallback(async (s: any) => {
           s.result = "fallback";
         })
@@ -260,7 +262,7 @@ describe("withFallback", () => {
 
   test("does not fire fallback when no step throws", async () => {
     const s: any = { result: "" };
-    await (new FlowBuilder<any>() as any)
+    await (new P<any>() as any)
       .withFallback(async (s: any) => {
         s.result = "fallback";
       })
@@ -279,7 +281,7 @@ describe("withFallback", () => {
 describe("withCircuitBreaker", () => {
   test("opens circuit after maxFailures consecutive failures", async () => {
     let attempts = 0;
-    const flow = (new FlowBuilder() as any)
+    const flow = (new P() as any)
       .withCircuitBreaker({ maxFailures: 2 })
       .startWith(async () => {
         attempts += 1;
@@ -300,7 +302,7 @@ describe("withCircuitBreaker", () => {
 
   test("resets after resetMs and allows new attempts", async () => {
     let attempts = 0;
-    const flow = (new FlowBuilder() as any)
+    const flow = (new P() as any)
       .withCircuitBreaker({ maxFailures: 1, resetMs: 30 })
       .startWith(async () => {
         attempts += 1;
@@ -320,12 +322,10 @@ describe("withCircuitBreaker", () => {
     // Exercises the opts = {} default-parameter branch.
     // With defaults (maxFailures=3) two failures should NOT open the circuit.
     let attempts = 0;
-    const flow = (new FlowBuilder() as any)
-      .withCircuitBreaker()
-      .startWith(async () => {
-        attempts += 1;
-        throw new Error("fail");
-      });
+    const flow = (new P() as any).withCircuitBreaker().startWith(async () => {
+      attempts += 1;
+      throw new Error("fail");
+    });
 
     await expect(flow.run({})).rejects.toBeDefined();
     await expect(flow.run({})).rejects.toBeDefined();
@@ -337,7 +337,7 @@ describe("withCircuitBreaker", () => {
     // Exercises the afterStep hook (success path).
     let calls = 0;
     let shouldFail = true;
-    const flow = (new FlowBuilder() as any)
+    const flow = (new P() as any)
       .withCircuitBreaker({ maxFailures: 2 })
       .startWith(async () => {
         calls += 1;
@@ -364,7 +364,7 @@ describe("withCircuitBreaker", () => {
 describe("withTimeout (plugin)", () => {
   test("throws when any step exceeds the timeout", async () => {
     await expect(
-      (new FlowBuilder() as any)
+      (new P() as any)
         .withTimeout(20)
         .startWith(async () => {
           await new Promise((r) => setTimeout(r, 200));
@@ -375,7 +375,7 @@ describe("withTimeout (plugin)", () => {
 
   test("does not throw when all steps finish within the timeout", async () => {
     await expect(
-      (new FlowBuilder() as any)
+      (new P() as any)
         .withTimeout(500)
         .startWith(async () => {
           await new Promise((r) => setTimeout(r, 5));
@@ -398,7 +398,7 @@ describe("withCheckpoint", () => {
         saved.push({ i, s: JSON.parse(JSON.stringify(s)) }),
     };
     const s = { v: 0 };
-    await (new FlowBuilder<typeof s>() as any)
+    await (new P<typeof s>() as any)
       .withCheckpoint(store)
       .startWith(async (s: any) => {
         s.v = 1;
@@ -422,7 +422,7 @@ describe("withAuditLog", () => {
     const log: any[] = [];
     const store = { append: (e: any) => log.push(e) };
     const s = { x: 0 };
-    await (new FlowBuilder<typeof s>() as any)
+    await (new P<typeof s>() as any)
       .withAuditLog(store)
       .startWith(async (s: any) => {
         s.x = 42;
@@ -438,7 +438,7 @@ describe("withAuditLog", () => {
     const log: any[] = [];
     const store = { append: (e: any) => log.push(e) };
     try {
-      await (new FlowBuilder() as any)
+      await (new P() as any)
         .withAuditLog(store)
         .startWith(async () => {
           throw new Error("audit-err");
@@ -453,7 +453,7 @@ describe("withAuditLog", () => {
     const log: any[] = [];
     const store = { append: (e: any) => log.push(e) };
     const s: any = { v: 0 };
-    await (new FlowBuilder<any>() as any)
+    await (new P<any>() as any)
       .withAuditLog(store)
       .startWith(async (s: any) => {
         s.v = 1;
@@ -474,7 +474,7 @@ describe("withAuditLog", () => {
 describe("withReplay", () => {
   test("skips steps before fromStep and runs the rest", async () => {
     const ran: number[] = [];
-    await (new FlowBuilder() as any)
+    await (new P() as any)
       .withReplay(2)
       .startWith(async () => {
         ran.push(0);
@@ -494,7 +494,7 @@ describe("withReplay", () => {
 
   test("withReplay(0) runs all steps normally", async () => {
     const ran: number[] = [];
-    await (new FlowBuilder() as any)
+    await (new P() as any)
       .withReplay(0)
       .startWith(async () => {
         ran.push(0);
@@ -515,7 +515,7 @@ describe("withTokenBudget", () => {
   test("does not throw while under budget", async () => {
     const s: any = { tokensUsed: 50 };
     await expect(
-      (new FlowBuilder<any>() as any)
+      (new P<any>() as any)
         .withTokenBudget(100)
         .startWith(async () => {})
         .run(s),
@@ -525,7 +525,7 @@ describe("withTokenBudget", () => {
   test("throws when tokensUsed reaches the limit before a step", async () => {
     const s: any = { tokensUsed: 0 };
     await expect(
-      (new FlowBuilder<any>() as any)
+      (new P<any>() as any)
         .withTokenBudget(10)
         .startWith(async (s: any) => {
           s.tokensUsed = 10;
@@ -545,7 +545,7 @@ describe("withTokenBudget", () => {
 describe("withCostTracker", () => {
   test("accumulates __stepCost into __cost and clears __stepCost", async () => {
     const s: any = {};
-    await (new FlowBuilder<any>() as any)
+    await (new P<any>() as any)
       .withCostTracker()
       .startWith(async (s: any) => {
         s.__stepCost = 0.01;
@@ -560,7 +560,7 @@ describe("withCostTracker", () => {
 
   test("__cost starts at 0 when no step sets __stepCost", async () => {
     const s: any = {};
-    await (new FlowBuilder<any>() as any)
+    await (new P<any>() as any)
       .withCostTracker()
       .startWith(async () => {})
       .run(s);
@@ -575,7 +575,7 @@ describe("withCostTracker", () => {
 describe("withRateLimit", () => {
   test("enforces a minimum gap between steps", async () => {
     const timestamps: number[] = [];
-    await (new FlowBuilder() as any)
+    await (new P() as any)
       .withRateLimit({ intervalMs: 30 })
       .startWith(async () => {
         timestamps.push(Date.now());
@@ -599,7 +599,7 @@ describe("withRateLimit", () => {
 describe("withDryRun", () => {
   test("skips all step bodies", async () => {
     const ran: boolean[] = [];
-    await (new FlowBuilder() as any)
+    await (new P() as any)
       .withDryRun()
       .startWith(async () => {
         ran.push(true);
@@ -622,8 +622,8 @@ describe("withDryRun", () => {
         return this;
       },
     };
-    FlowBuilder.use(plugin);
-    await (new FlowBuilder() as any)
+    const DryHookExt = FlowBuilder.extend([withDryRun, plugin]);
+    await (new DryHookExt() as any)
       .withDryRun()
       .withHooksDryRun()
       .startWith(async () => {
@@ -641,7 +641,7 @@ describe("withDryRun", () => {
 describe("withMocks", () => {
   test("replaces mocked steps and runs real steps normally", async () => {
     const s: any = { a: "", b: "", c: "" };
-    await (new FlowBuilder<any>() as any)
+    await (new P<any>() as any)
       .withMocks({
         1: async (s: any) => {
           s.b = "mocked";
@@ -664,7 +664,7 @@ describe("withMocks", () => {
 
   test("empty mock map runs all steps normally", async () => {
     const ran: number[] = [];
-    await (new FlowBuilder() as any)
+    await (new P() as any)
       .withMocks({})
       .startWith(async () => {
         ran.push(0);
@@ -684,7 +684,7 @@ describe("withMocks", () => {
 describe("withStepLimit", () => {
   test("allows flows under the limit", async () => {
     const shared = { count: 0 };
-    await (new FlowBuilder() as any)
+    await (new P() as any)
       .withStepLimit(10)
       .startWith(async (s: any) => {
         s.count++;
@@ -697,7 +697,7 @@ describe("withStepLimit", () => {
   });
 
   test("throws when step count exceeds limit", async () => {
-    const flow = (new FlowBuilder() as any)
+    const flow = (new P() as any)
       .withStepLimit(2)
       .startWith(async () => {})
       .then(async () => {})
@@ -706,7 +706,7 @@ describe("withStepLimit", () => {
   });
 
   test("counter resets between runs", async () => {
-    const flow = (new FlowBuilder() as any)
+    const flow = (new P() as any)
       .withStepLimit(5)
       .startWith(async () => {})
       .then(async () => {});
@@ -722,7 +722,7 @@ describe("withStepLimit", () => {
 describe("withAtomicUpdates", () => {
   test("drafts are isolated, reducer merges", async () => {
     const shared = { total: 0 };
-    await (new FlowBuilder() as any)
+    await (new P() as any)
       .parallelAtomic(
         [
           async (s: any) => {
@@ -746,7 +746,7 @@ describe("withAtomicUpdates", () => {
 
   test("original shared is not mutated during parallel execution", async () => {
     const shared = { val: "original" };
-    await (new FlowBuilder() as any)
+    await (new P() as any)
       .parallelAtomic(
         [
           async (s: any) => {
@@ -772,7 +772,7 @@ describe("withAtomicUpdates", () => {
 describe("withCycles", () => {
   test("allows flows within cycle limit (no gotos)", async () => {
     const shared = { count: 0 };
-    await (new FlowBuilder() as any)
+    await (new P() as any)
       .withCycles(20)
       .startWith(async (s: any) => {
         s.count++;
@@ -785,7 +785,7 @@ describe("withCycles", () => {
   });
 
   test("throws on global jump limit exceeded", async () => {
-    const flow = (new FlowBuilder() as any).withCycles(3);
+    const flow = (new P() as any).withCycles(3);
     flow.anchor("loop").then(async (s: any) => {
       s.n = (s.n ?? 0) + 1;
       return "#loop"; // forever
@@ -795,7 +795,7 @@ describe("withCycles", () => {
 
   test("allows gotos within global limit", async () => {
     const shared = { n: 0 };
-    const flow = (new FlowBuilder() as any).withCycles(5);
+    const flow = (new P() as any).withCycles(5);
     flow.anchor("loop").then(async (s: any) => {
       s.n++;
       if (s.n < 3) return "#loop";
@@ -805,7 +805,7 @@ describe("withCycles", () => {
   });
 
   test("throws when per-anchor limit exceeded", async () => {
-    const flow = (new FlowBuilder() as any).withCycles(5, "fast");
+    const flow = (new P() as any).withCycles(5, "fast");
     flow.anchor("fast").then(async (s: any) => {
       s.n = (s.n ?? 0) + 1;
       return "#fast"; // loops forever on "fast"
@@ -818,9 +818,7 @@ describe("withCycles", () => {
   test("independent per-anchor limits", async () => {
     const shared = { a: 0, b: 0, done: false };
     // "slow" anchor allows 5 visits, "fast" allows 2
-    const flow = (new FlowBuilder() as any)
-      .withCycles(2, "fast")
-      .withCycles(5, "slow");
+    const flow = (new P() as any).withCycles(2, "fast").withCycles(5, "slow");
     flow
       .anchor("fast")
       .then(async (s: any) => {
@@ -842,7 +840,7 @@ describe("withCycles", () => {
   test("per-anchor limit does not affect unrelated anchors", async () => {
     const shared = { n: 0 };
     // Only limit "other", loop on "loop" 3 times — should not throw
-    const flow = (new FlowBuilder() as any).withCycles(1, "other");
+    const flow = (new P() as any).withCycles(1, "other");
     flow.anchor("loop").then(async (s: any) => {
       s.n++;
       if (s.n < 3) return "#loop";
@@ -859,7 +857,7 @@ describe("withCycles", () => {
 describe("withInterrupts", () => {
   test("does not interrupt when condition is false", async () => {
     const shared = { step: 0 };
-    await (new FlowBuilder() as any)
+    await (new P() as any)
       .startWith(async (s: any) => {
         s.step = 1;
       })
@@ -873,7 +871,7 @@ describe("withInterrupts", () => {
 
   test("throws InterruptError when condition is true", async () => {
     const shared = { step: 0 };
-    const flow = (new FlowBuilder() as any)
+    const flow = (new P() as any)
       .startWith(async (s: any) => {
         s.step = 1;
       })
@@ -894,7 +892,7 @@ describe("withInterrupts", () => {
 
   test("InterruptError carries a deep clone of shared", async () => {
     const shared = { nested: { value: 1 } };
-    const flow = (new FlowBuilder() as any)
+    const flow = (new P() as any)
       .startWith(async (s: any) => {
         s.nested.value = 42;
       })
@@ -916,7 +914,7 @@ describe("withInterrupts", () => {
 describe("withChannels", () => {
   test("sendTo and receiveFrom pass messages between steps", async () => {
     const shared: any = {};
-    await (new FlowBuilder() as any)
+    await (new P() as any)
       .withChannels()
       .startWith(async (s: any) => {
         sendTo(s, "work", { task: "A" });
@@ -932,7 +930,7 @@ describe("withChannels", () => {
 
   test("receiveFrom drains the queue", async () => {
     const shared: any = {};
-    await (new FlowBuilder() as any)
+    await (new P() as any)
       .withChannels()
       .startWith(async (s: any) => {
         sendTo(s, "ch", 1);
@@ -949,7 +947,7 @@ describe("withChannels", () => {
 
   test("receiveFrom on unknown channel returns empty array", async () => {
     const shared: any = {};
-    await (new FlowBuilder() as any)
+    await (new P() as any)
       .withChannels()
       .startWith(async (s: any) => {
         s.result = receiveFrom(s, "nonexistent");
@@ -960,7 +958,7 @@ describe("withChannels", () => {
 
   test("peekChannel does not drain", async () => {
     const shared: any = {};
-    await (new FlowBuilder() as any)
+    await (new P() as any)
       .withChannels()
       .startWith(async (s: any) => {
         sendTo(s, "ch", "msg");
@@ -987,7 +985,7 @@ describe("withVersionedCheckpoint", () => {
       resolve: () => ({ stepIndex: 0, snapshot: {} }),
     };
     const shared = { a: 1 };
-    await (new FlowBuilder() as any)
+    await (new P() as any)
       .withVersionedCheckpoint(store)
       .startWith(async (s: any) => {
         s.a = 2;
@@ -1012,7 +1010,7 @@ describe("withVersionedCheckpoint", () => {
       save: (entry: any) => entries.push(entry),
       resolve: () => ({ stepIndex: 0, snapshot: {} }),
     };
-    await (new FlowBuilder() as any)
+    await (new P() as any)
       .withVersionedCheckpoint(store)
       .startWith(async () => {
         /* no-op */
@@ -1033,7 +1031,7 @@ describe("resumeFrom", () => {
       save: () => {},
       resolve: () => ({ stepIndex: 1, snapshot: {} }),
     };
-    await (new FlowBuilder() as any)
+    await (new P() as any)
       .resumeFrom("v1", store)
       .startWith(async () => {
         ran.push(0);

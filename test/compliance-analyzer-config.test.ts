@@ -18,10 +18,7 @@ import { withDryRun } from "../plugins/dev/withDryRun";
 import { JsonFlowBuilder, ConfigValidationError } from "../presets/config";
 import { validate } from "../plugins/config";
 
-FlowBuilder.use(withAuditFlow);
-FlowBuilder.use(withRuntimeCompliance);
-FlowBuilder.use(withFlowAnalyzer);
-FlowBuilder.use(withDryRun);
+const CA = FlowBuilder.extend([withAuditFlow, withRuntimeCompliance, withFlowAnalyzer, withDryRun]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Compliance — auditFlow (static)
@@ -29,7 +26,7 @@ FlowBuilder.use(withDryRun);
 
 describe("withAuditFlow", () => {
   test("detects a sink step after a source step", () => {
-    const flow = new FlowBuilder<any>()
+    const flow = new CA<any>()
       .then(
         async (s) => {
           s.email = "user@example.com";
@@ -58,7 +55,7 @@ describe("withAuditFlow", () => {
   });
 
   test("passes when there is no source before the sink", () => {
-    const flow = new FlowBuilder<any>()
+    const flow = new CA<any>()
       .then(async () => {}, { label: "external:send" })
       .then(async () => {}, { label: "pii:fetchUser" });
 
@@ -74,7 +71,7 @@ describe("withAuditFlow", () => {
   });
 
   test("wildcard source filter matches prefix", () => {
-    const flow = new FlowBuilder<any>()
+    const flow = new CA<any>()
       .then(async () => {}, { label: "pii:user" })
       .then(async () => {}, { label: "external:api" });
 
@@ -86,7 +83,7 @@ describe("withAuditFlow", () => {
   });
 
   test("predicate filter works", () => {
-    const flow = new FlowBuilder<any>()
+    const flow = new CA<any>()
       .then(async () => {}, { label: "pii:address" })
       .then(async () => {}, { label: "thirdParty:log" });
 
@@ -101,7 +98,7 @@ describe("withAuditFlow", () => {
   });
 
   test("no violations when labels don't match any rule", () => {
-    const flow = new FlowBuilder<any>()
+    const flow = new CA<any>()
       .then(async () => {}, { label: "step:a" })
       .then(async () => {}, { label: "step:b" });
 
@@ -113,7 +110,7 @@ describe("withAuditFlow", () => {
   });
 
   test("anchor steps are traversed without causing false violations", () => {
-    const flow = new FlowBuilder<any>()
+    const flow = new CA<any>()
       .then(async () => {}, { label: "pii:fetch" })
       .anchor("retry")
       .then(async () => {}, { label: "external:send" });
@@ -126,7 +123,7 @@ describe("withAuditFlow", () => {
   });
 
   test("loop body steps are scanned for taint", () => {
-    const flow = new FlowBuilder<any>()
+    const flow = new CA<any>()
       .loop(
         async (s) => !s.done,
         (b) =>
@@ -149,7 +146,7 @@ describe("withAuditFlow", () => {
   });
 
   test("batch processor steps are scanned for taint", () => {
-    const flow = new FlowBuilder<any>()
+    const flow = new CA<any>()
       .batch(
         async (s) => s.items,
         (b) => b.then(async () => {}, { label: "pii:item" }),
@@ -164,7 +161,7 @@ describe("withAuditFlow", () => {
 
   test("branch arm labels are included in taint scan", () => {
     function piiArm(_s: any) {}
-    const flow = new FlowBuilder<any>()
+    const flow = new CA<any>()
       .branch(async (s) => s.path, { piiArm, other: async () => {} })
       .then(async () => {}, { label: "external:send" });
 
@@ -184,7 +181,7 @@ describe("withAuditFlow", () => {
 
 describe("withRuntimeCompliance", () => {
   test('onViolation "throw" — throws ComplianceError', async () => {
-    const flow = new FlowBuilder<{ email?: string }>()
+    const flow = new CA<{ email?: string }>()
       .then(async (s) => {
         s.email = "user@example.com";
       })
@@ -208,7 +205,7 @@ describe("withRuntimeCompliance", () => {
 
   test('onViolation "record" — collects violations without throwing', async () => {
     const shared: any = {};
-    const flow = new FlowBuilder<any>()
+    const flow = new CA<any>()
       .then(async (s) => {
         s.sensitive = "secret";
       })
@@ -231,7 +228,7 @@ describe("withRuntimeCompliance", () => {
 
   test("inspector with no filter fires for all steps", async () => {
     let count = 0;
-    const flow = new FlowBuilder<any>()
+    const flow = new CA<any>()
       .then(async () => {})
       .then(async () => {})
       .then(async () => {});
@@ -254,7 +251,7 @@ describe("withRuntimeCompliance", () => {
     const origWarn = console.warn;
     console.warn = (...args: any[]) => warnings.push(args.join(" "));
     try {
-      const flow = new FlowBuilder<any>()
+      const flow = new CA<any>()
         .then(async (s) => {
           s.secret = "sensitive";
         })
@@ -334,7 +331,7 @@ describe("scanShared", () => {
 
 describe("analyzeFlow", () => {
   test("returns nodes for a linear flow", () => {
-    const flow = new FlowBuilder<any>()
+    const flow = new CA<any>()
       .then(async () => {}, { label: "step:a" })
       .then(async () => {}, { label: "step:b" });
 
@@ -345,7 +342,7 @@ describe("analyzeFlow", () => {
   });
 
   test("includes anchor names", () => {
-    const flow = new FlowBuilder<any>()
+    const flow = new CA<any>()
       .anchor("retry", 3)
       .then(async () => {})
       .then(async (s) => (s.done ? undefined : "#retry"));
@@ -355,7 +352,7 @@ describe("analyzeFlow", () => {
   });
 
   test("branch step has correct branch keys", () => {
-    const flow = new FlowBuilder<any>().branch(
+    const flow = new CA<any>().branch(
       async (s) => (s.ok ? "pass" : "fail"),
       { pass: async () => {}, fail: async () => {} },
     );
@@ -368,19 +365,19 @@ describe("analyzeFlow", () => {
   });
 
   test("hasDynamicGotos is true when fn steps exist", () => {
-    const flow = new FlowBuilder<any>().then(async () => {});
+    const flow = new CA<any>().then(async () => {});
     const map = (flow as any).analyzeFlow();
     expect(map.hasDynamicGotos).toBe(true);
   });
 
   test("hasDynamicGotos is false for anchor-only flow", () => {
-    const flow = new FlowBuilder<any>().anchor("start");
+    const flow = new CA<any>().anchor("start");
     const map = (flow as any).analyzeFlow();
     expect(map.hasDynamicGotos).toBe(false);
   });
 
   test("loop body is nested in the loop node", () => {
-    const flow = new FlowBuilder<any>().loop(
+    const flow = new CA<any>().loop(
       async (s) => !s.done,
       (b) =>
         b.then(
@@ -399,7 +396,7 @@ describe("analyzeFlow", () => {
   });
 
   test("batch step has nested body nodes", () => {
-    const flow = new FlowBuilder<any>().batch(
+    const flow = new CA<any>().batch(
       async (s) => s.items,
       (b) => b.then(async () => {}, { label: "process:item" }),
     );
@@ -412,7 +409,7 @@ describe("analyzeFlow", () => {
   });
 
   test("parallel step has lanes array", () => {
-    const flow = new FlowBuilder<any>().parallel([
+    const flow = new CA<any>().parallel([
       async function taskA(s: any) {
         s.a = 1;
       },
@@ -436,7 +433,7 @@ describe("analyzeFlow", () => {
 
 describe("withTrace", () => {
   test("records visited steps", async () => {
-    const flow = new FlowBuilder<any>()
+    const flow = new CA<any>()
       .then(async () => {}, { label: "step:a" })
       .then(async () => {}, { label: "step:b" });
 
@@ -450,7 +447,7 @@ describe("withTrace", () => {
   });
 
   test("dispose removes hooks — no further events collected", async () => {
-    const flow = new FlowBuilder<any>().then(async () => {}, {
+    const flow = new CA<any>().then(async () => {}, {
       label: "step:a",
     });
 
@@ -462,7 +459,7 @@ describe("withTrace", () => {
   });
 
   test("pathSummary omits unlabelled steps", async () => {
-    const flow = new FlowBuilder<any>()
+    const flow = new CA<any>()
       .then(async () => {}) // no label
       .then(async () => {}, { label: "named" });
 
@@ -476,7 +473,7 @@ describe("withTrace", () => {
 
   test("composable with withDryRun — records trace without executing logic", async () => {
     let sideEffect = false;
-    const flow = new FlowBuilder<any>().then(
+    const flow = new CA<any>().then(
       async () => {
         sideEffect = true;
       },
@@ -493,7 +490,7 @@ describe("withTrace", () => {
   });
 
   test("totalDurationMs is sum of event durations", async () => {
-    const flow = new FlowBuilder<any>()
+    const flow = new CA<any>()
       .then(async () => {})
       .then(async () => {});
 

@@ -15,7 +15,7 @@ import {
 } from "../plugins/eval";
 import { withGraph } from "../plugins/graph";
 
-FlowBuilder.use(withGraph);
+const GF = FlowBuilder.extend([withGraph]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // exactMatch
@@ -253,7 +253,7 @@ describe("withGraph - addNode / addEdge / compile()", () => {
     const order: string[] = [];
     const s: any = {};
 
-    await (new FlowBuilder<any>() as any)
+    await (new GF<any>() as any)
       .addNode("a", () => {
         order.push("a");
       })
@@ -274,7 +274,7 @@ describe("withGraph - addNode / addEdge / compile()", () => {
   test("graph nodes can mutate shared state", async () => {
     const s: any = { sum: 0 };
 
-    await (new FlowBuilder<any>() as any)
+    await (new GF<any>() as any)
       .addNode("add1", (s: any) => {
         s.sum += 1;
       })
@@ -290,7 +290,7 @@ describe("withGraph - addNode / addEdge / compile()", () => {
 
   test("throws when duplicate node name is added", () => {
     expect(() =>
-      (new FlowBuilder<any>() as any)
+      (new GF<any>() as any)
         .addNode("x", async () => {})
         .addNode("x", async () => {}),
     ).toThrow("already exists");
@@ -298,7 +298,7 @@ describe("withGraph - addNode / addEdge / compile()", () => {
 
   test("throws on compile when edge references unknown node", () => {
     expect(() =>
-      (new FlowBuilder<any>() as any)
+      (new GF<any>() as any)
         .addNode("a", async () => {})
         .addEdge("a", "ghost")
         .compile(),
@@ -306,12 +306,12 @@ describe("withGraph - addNode / addEdge / compile()", () => {
   });
 
   test("throws on compile when graph is empty", () => {
-    expect(() => (new FlowBuilder<any>() as any).compile()).toThrow("empty");
+    expect(() => (new GF<any>() as any).compile()).toThrow("empty");
   });
 
   test("throws on compile when unconditional edges form a cycle", () => {
     expect(() =>
-      (new FlowBuilder<any>() as any)
+      (new GF<any>() as any)
         .addNode("a", async () => {})
         .addNode("b", async () => {})
         .addEdge("a", "b")
@@ -323,7 +323,7 @@ describe("withGraph - addNode / addEdge / compile()", () => {
   test("conditional back-edge creates a loop that terminates", async () => {
     const s: any = { count: 0 };
 
-    await (new FlowBuilder<any>() as any)
+    await (new GF<any>() as any)
       .addNode("inc", (s: any) => {
         s.count++;
       })
@@ -340,7 +340,7 @@ describe("withGraph - addNode / addEdge / compile()", () => {
     const order: string[] = [];
     const s: any = {};
 
-    await (new FlowBuilder<any>() as any)
+    await (new GF<any>() as any)
       .addNode("first", () => {
         order.push("first");
       })
@@ -361,7 +361,7 @@ describe("withGraph - addNode / addEdge / compile()", () => {
     let attempts = 0;
     const s: any = {};
 
-    await (new FlowBuilder<any>() as any)
+    await (new GF<any>() as any)
       .addNode(
         "flaky",
         () => {

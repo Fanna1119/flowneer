@@ -20,11 +20,11 @@ import { withGraph } from "../../plugins/graph";
 import { withExportGraph } from "../../plugins/graph/withExportGraph";
 import { withExportFlow } from "../../plugins/graph/withExportFlow";
 
-// Register plugins once — order matters.
-// withExportFlow overrides `exportGraph` and must be loaded last.
-FlowBuilder.use(withGraph);
-FlowBuilder.use(withExportGraph);
-FlowBuilder.use(withExportFlow);
+const GraphExportFlow = FlowBuilder.extend([
+  withGraph,
+  withExportGraph,
+  withExportFlow,
+]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared state type
@@ -79,7 +79,7 @@ console.log("=".repeat(60));
 console.log("Example 1 — withExportGraph (graph-only export)");
 console.log("=".repeat(60));
 
-const graphFlow = new FlowBuilder<PipelineState>()
+const graphFlow = new GraphExportFlow<PipelineState>()
   .addNode("fetch", fetchData)
   .addNode("clean", cleanData)
   .addNode("enrich", enrichData, { retries: 2 })
@@ -132,7 +132,7 @@ function handleFail(state: PipelineState) {
   state.report = "✗ Validation failed.";
 }
 
-const seqFlow = new FlowBuilder<PipelineState>()
+const seqFlow = new GraphExportFlow<PipelineState>()
   .then(fetchData)
   .then(cleanData)
   .then(enrichData, { retries: 2, timeoutMs: 5000 })
@@ -175,7 +175,7 @@ console.log("=".repeat(60));
 console.log("Example 3 — withExportFlow with graph store (unified export)");
 console.log("=".repeat(60));
 
-const unifiedFlow = new FlowBuilder<PipelineState>()
+const unifiedFlow = new GraphExportFlow<PipelineState>()
   .addNode("fetch", fetchData)
   .addNode("clean", cleanData)
   .addNode("enrich", enrichData, { retries: 3 })

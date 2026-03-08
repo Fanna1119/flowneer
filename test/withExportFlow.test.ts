@@ -8,8 +8,7 @@ import { withGraph } from "../plugins/graph";
 import { withExportFlow } from "../plugins/graph/withExportFlow";
 import type { FlowExport } from "../plugins/graph/withExportFlow";
 
-FlowBuilder.use(withGraph);
-FlowBuilder.use(withExportFlow); // overrides exportGraph from withExportGraph
+const EF = FlowBuilder.extend([withGraph, withExportFlow]);
 
 const noop = () => {};
 function named() {}
@@ -20,19 +19,19 @@ function named() {}
 
 describe("withExportFlow — basic shape", () => {
   test("returns format: 'json'", () => {
-    const result = new FlowBuilder().exportGraph();
+    const result = new EF().exportGraph();
     expect(result.format).toBe("json");
   });
 
   test("always has a flow section", () => {
-    const result = new FlowBuilder().exportGraph();
+    const result = new EF().exportGraph();
     expect(result).toHaveProperty("flow");
     expect(Array.isArray(result.flow.nodes)).toBe(true);
     expect(Array.isArray(result.flow.edges)).toBe(true);
   });
 
   test("empty builder has empty flow section and no graph section", () => {
-    const result = new FlowBuilder().exportGraph();
+    const result = new EF().exportGraph();
     expect(result.flow.nodes).toHaveLength(0);
     expect(result.flow.edges).toHaveLength(0);
     expect(result.graph).toBeUndefined();
@@ -45,23 +44,23 @@ describe("withExportFlow — basic shape", () => {
 
 describe("withExportFlow — fn steps", () => {
   test("each .then() produces a fn node", () => {
-    const result = new FlowBuilder().then(noop).then(noop).exportGraph();
+    const result = new EF().then(noop).then(noop).exportGraph();
     const fnNodes = result.flow.nodes.filter((n) => n.type === "fn");
     expect(fnNodes).toHaveLength(2);
   });
 
   test("named function label is used", () => {
-    const result = new FlowBuilder().then(named).exportGraph();
+    const result = new EF().then(named).exportGraph();
     expect(result.flow.nodes[0]!.label).toBe("named");
   });
 
   test("anonymous arrow function label is 'anonymous'", () => {
-    const result = new FlowBuilder().then(() => {}).exportGraph();
+    const result = new EF().then(() => {}).exportGraph();
     expect(result.flow.nodes[0]!.label).toBe("anonymous");
   });
 
   test("sequential edges connect fn steps", () => {
-    const result = new FlowBuilder()
+    const result = new EF()
       .then(noop)
       .then(noop)
       .then(noop)
@@ -75,12 +74,12 @@ describe("withExportFlow — fn steps", () => {
   });
 
   test("node retries option is serialised", () => {
-    const result = new FlowBuilder().then(noop, { retries: 3 }).exportGraph();
+    const result = new EF().then(noop, { retries: 3 }).exportGraph();
     expect(result.flow.nodes[0]!.options?.retries).toBe(3);
   });
 
   test("zero-value options are omitted", () => {
-    const result = new FlowBuilder()
+    const result = new EF()
       .then(noop, { retries: 1, delaySec: 0, timeoutMs: 0 })
       .exportGraph();
     // retries 1 is the default encoded as 1 (non-zero, still shown)
@@ -89,7 +88,7 @@ describe("withExportFlow — fn steps", () => {
   });
 
   test("function options are serialised as '<dynamic>'", () => {
-    const result = new FlowBuilder()
+    const result = new EF()
       .then(noop, { retries: (s: any) => s.r ?? 1 })
       .exportGraph();
     expect(result.flow.nodes[0]!.options?.retries).toBe("<dynamic>");
@@ -98,7 +97,7 @@ describe("withExportFlow — fn steps", () => {
   test("non-serialisable option types (e.g. boolean) are omitted", () => {
     // Passes a boolean — not undefined/null/number/function — so serOpt falls
     // through to its final `return undefined`, keeping the node options absent.
-    const result = new FlowBuilder()
+    const result = new EF()
       .then(noop, { retries: true as any })
       .exportGraph();
     expect(result.flow.nodes[0]!.options).toBeUndefined();
@@ -111,7 +110,7 @@ describe("withExportFlow — fn steps", () => {
 
 describe("withExportFlow — anchor steps", () => {
   test("anchor step produces an anchor node with id 'anchor:name'", () => {
-    const result = new FlowBuilder().anchor("recover").exportGraph();
+    const result = new EF().anchor("recover").exportGraph();
     const anchor = result.flow.nodes.find((n) => n.type === "anchor");
     expect(anchor).toBeDefined();
     expect(anchor!.id).toBe("anchor:recover");
@@ -119,7 +118,7 @@ describe("withExportFlow — anchor steps", () => {
   });
 
   test("anchor node is connected via sequential edge", () => {
-    const result = new FlowBuilder()
+    const result = new EF()
       .then(noop)
       .anchor("a")
       .then(noop)
@@ -137,7 +136,7 @@ describe("withExportFlow — anchor steps", () => {
 
 describe("withExportFlow — branch steps", () => {
   test("branch step produces a branch node with meta.branches", () => {
-    const result = new FlowBuilder()
+    const result = new EF()
       .branch((s: any) => s.path, { left: noop, right: noop })
       .exportGraph();
 
@@ -147,7 +146,7 @@ describe("withExportFlow — branch steps", () => {
   });
 
   test("each branch arm gets its own fn node with branch-arm edge", () => {
-    const result = new FlowBuilder()
+    const result = new EF()
       .branch((s: any) => s.p, { a: named, b: noop })
       .exportGraph();
 
@@ -160,7 +159,7 @@ describe("withExportFlow — branch steps", () => {
   });
 
   test("named branch fn label is used", () => {
-    const result = new FlowBuilder()
+    const result = new EF()
       .branch((s: any) => s.p, { go: named })
       .exportGraph();
     const armNode = result.flow.nodes.find((n) => n.id.includes(":arm:go"));
@@ -174,7 +173,7 @@ describe("withExportFlow — branch steps", () => {
 
 describe("withExportFlow — loop steps", () => {
   test("loop step produces a loop node", () => {
-    const result = new FlowBuilder()
+    const result = new EF()
       .loop(
         () => false,
         (b) => b.then(noop),
@@ -186,7 +185,7 @@ describe("withExportFlow — loop steps", () => {
   });
 
   test("loop body steps appear as prefixed nodes", () => {
-    const result = new FlowBuilder()
+    const result = new EF()
       .loop(
         () => false,
         (b) => b.then(named),
@@ -201,7 +200,7 @@ describe("withExportFlow — loop steps", () => {
   });
 
   test("loop-body edge connects loop to body, loop-back connects back", () => {
-    const result = new FlowBuilder()
+    const result = new EF()
       .loop(
         () => false,
         (b) => b.then(noop),
@@ -223,7 +222,7 @@ describe("withExportFlow — loop steps", () => {
 
 describe("withExportFlow — batch steps", () => {
   test("batch step produces a batch node with meta.key", () => {
-    const result = new FlowBuilder()
+    const result = new EF()
       .batch(
         (s: any) => s.items,
         (b) => b.then(noop),
@@ -237,7 +236,7 @@ describe("withExportFlow — batch steps", () => {
   });
 
   test("batch processor steps appear as prefixed sub-nodes", () => {
-    const result = new FlowBuilder()
+    const result = new EF()
       .batch(
         (s: any) => s.items,
         (b) => b.then(named),
@@ -252,7 +251,7 @@ describe("withExportFlow — batch steps", () => {
   });
 
   test("batch-body edge connects batch node to first processor step", () => {
-    const result = new FlowBuilder()
+    const result = new EF()
       .batch(
         (s: any) => s.items,
         (b) => b.then(noop),
@@ -271,7 +270,7 @@ describe("withExportFlow — batch steps", () => {
 
 describe("withExportFlow — parallel steps", () => {
   test("parallel step produces a parallel node with meta.count", () => {
-    const result = new FlowBuilder()
+    const result = new EF()
       .parallel([noop, named, noop])
       .exportGraph();
 
@@ -281,7 +280,7 @@ describe("withExportFlow — parallel steps", () => {
   });
 
   test("each parallel fn gets a fan-out node", () => {
-    const result = new FlowBuilder().parallel([noop, named]).exportGraph();
+    const result = new EF().parallel([noop, named]).exportGraph();
     const fanNodes = result.flow.nodes.filter((n) =>
       n.id.startsWith("parallel_0:fn_"),
     );
@@ -289,13 +288,13 @@ describe("withExportFlow — parallel steps", () => {
   });
 
   test("named parallel fn label is used", () => {
-    const result = new FlowBuilder().parallel([named]).exportGraph();
+    const result = new EF().parallel([named]).exportGraph();
     const fnNode = result.flow.nodes.find((n) => n.id === "parallel_0:fn_0");
     expect(fnNode!.label).toBe("named");
   });
 
   test("parallel-fan-out edges connect parallel node to each fn", () => {
-    const result = new FlowBuilder().parallel([noop, noop]).exportGraph();
+    const result = new EF().parallel([noop, noop]).exportGraph();
     const fanEdges = result.flow.edges.filter(
       (e) => e.kind === "parallel-fan-out",
     );
@@ -309,12 +308,12 @@ describe("withExportFlow — parallel steps", () => {
 
 describe("withExportFlow — graph store merging", () => {
   test("no graph section when only sequential steps", () => {
-    const result = new FlowBuilder().then(noop).exportGraph();
+    const result = new EF().then(noop).exportGraph();
     expect(result.graph).toBeUndefined();
   });
 
   test("graph section present when addNode/addEdge called", () => {
-    const result = new FlowBuilder<any>()
+    const result = new EF<any>()
       .addNode("fetch", noop)
       .addNode("save", noop)
       .addEdge("fetch", "save")
@@ -328,7 +327,7 @@ describe("withExportFlow — graph store merging", () => {
   });
 
   test("graph section has conditional flag set for conditional edges", () => {
-    const result = new FlowBuilder<any>()
+    const result = new EF<any>()
       .addNode("a", noop)
       .addNode("b", noop)
       .addEdge("a", "b", (s: any) => s.go)
@@ -338,7 +337,7 @@ describe("withExportFlow — graph store merging", () => {
   });
 
   test("graph node with options includes them in graph section", () => {
-    const result = new FlowBuilder<any>()
+    const result = new EF<any>()
       .addNode("a", noop, { retries: 2 })
       .exportGraph();
 
@@ -346,14 +345,14 @@ describe("withExportFlow — graph store merging", () => {
   });
 
   test("flow section is empty when only graph nodes registered (no compiled steps)", () => {
-    const result = new FlowBuilder<any>().addNode("a", noop).exportGraph();
+    const result = new EF<any>().addNode("a", noop).exportGraph();
 
     expect(result.flow.nodes).toHaveLength(0);
     expect(result.flow.edges).toHaveLength(0);
   });
 
   test("both sections populated after addNode and then()", async () => {
-    const result = new FlowBuilder<any>()
+    const result = new EF<any>()
       .then(noop)
       .addNode("g", noop)
       .exportGraph();
@@ -372,7 +371,7 @@ describe("withExportFlow — non-destructive", () => {
   test("compile() works after exportGraph()", async () => {
     const s: { ran: boolean } = { ran: false };
 
-    const flow = new FlowBuilder<typeof s>().addNode("a", (x) => {
+    const flow = new EF<typeof s>().addNode("a", (x) => {
       x.ran = true;
     });
 
@@ -385,7 +384,7 @@ describe("withExportFlow — non-destructive", () => {
 
   test("sequential flow can still run after exportGraph()", async () => {
     const s: { count: number } = { count: 0 };
-    const flow = new FlowBuilder<typeof s>()
+    const flow = new EF<typeof s>()
       .then((x) => {
         x.count++;
       })
@@ -399,7 +398,7 @@ describe("withExportFlow — non-destructive", () => {
   });
 
   test("exportGraph() is idempotent", () => {
-    const flow = new FlowBuilder().then(noop).then(noop);
+    const flow = new EF().then(noop).then(noop);
     expect(flow.exportGraph()).toEqual(flow.exportGraph());
   });
 });
@@ -410,13 +409,13 @@ describe("withExportFlow — non-destructive", () => {
 
 describe("withExportFlow — errors", () => {
   test('throws for "mermaid" format', () => {
-    expect(() => (new FlowBuilder() as any).exportGraph("mermaid")).toThrow(
+    expect(() => (new EF() as any).exportGraph("mermaid")).toThrow(
       "not yet implemented",
     );
   });
 
   test("throws for unknown format", () => {
-    expect(() => (new FlowBuilder() as any).exportGraph("graphviz")).toThrow(
+    expect(() => (new EF() as any).exportGraph("graphviz")).toThrow(
       'unknown format "graphviz"',
     );
   });
@@ -428,7 +427,7 @@ describe("withExportFlow — errors", () => {
 
 describe("withExportFlow — JSON round-trip", () => {
   test("full output is JSON-serialisable", () => {
-    const result: FlowExport = new FlowBuilder<any>()
+    const result: FlowExport = new EF<any>()
       .then(named)
       .then(noop, { retries: 3 })
       .anchor("mid")

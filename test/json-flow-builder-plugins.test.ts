@@ -10,10 +10,12 @@ import { withFlowAnalyzer } from "../plugins/dev/withFlowAnalyzer";
 import { withDryRun } from "../plugins/dev/withDryRun";
 import { JsonFlowBuilder } from "../presets/config";
 
-FlowBuilder.use(withAuditFlow);
-FlowBuilder.use(withRuntimeCompliance);
-FlowBuilder.use(withFlowAnalyzer);
-FlowBuilder.use(withDryRun);
+const CA = FlowBuilder.extend([
+  withAuditFlow,
+  withRuntimeCompliance,
+  withFlowAnalyzer,
+  withDryRun,
+]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Step type execution
@@ -266,8 +268,8 @@ describe("JsonFlowBuilder.build — fn step options", () => {
       { steps: [{ type: "fn", fn: "myFn", label: "my:label" }] },
       registry,
     );
-    flow.addHooks({
-      beforeStep: (meta) => {
+    (flow as any)._setHooks({
+      beforeStep: (meta: any) => {
         if (meta.label) labels.push(meta.label);
       },
     });
@@ -295,6 +297,7 @@ describe("JsonFlowBuilder.build + withAuditFlow", () => {
         ],
       },
       registry,
+      CA as any,
     );
 
     const report = (flow as any).auditFlow([
@@ -325,6 +328,7 @@ describe("JsonFlowBuilder.build + withAuditFlow", () => {
         ],
       },
       registry,
+      CA as any,
     );
 
     const report = (flow as any).auditFlow([
@@ -354,6 +358,7 @@ describe("JsonFlowBuilder.build + withAuditFlow", () => {
         ],
       },
       registry,
+      CA as any,
     );
 
     const report = (flow as any).auditFlow([
@@ -377,6 +382,7 @@ describe("JsonFlowBuilder.build + withAuditFlow", () => {
         ],
       },
       registry,
+      CA as any,
     );
 
     const report = (flow as any).auditFlow([
@@ -408,6 +414,7 @@ describe("JsonFlowBuilder.build + withRuntimeCompliance", () => {
         ],
       },
       registry,
+      CA as any,
     );
 
     (flow as any).withRuntimeCompliance([
@@ -438,6 +445,7 @@ describe("JsonFlowBuilder.build + withRuntimeCompliance", () => {
         ],
       },
       registry,
+      CA as any,
     );
 
     (flow as any).withRuntimeCompliance([
@@ -472,6 +480,7 @@ describe("JsonFlowBuilder.build + withRuntimeCompliance", () => {
         ],
       },
       registry,
+      CA as any,
     );
 
     (flow as any).withRuntimeCompliance([
@@ -496,6 +505,7 @@ describe("JsonFlowBuilder.build + withRuntimeCompliance", () => {
     const flow = JsonFlowBuilder.build(
       { steps: [{ type: "fn", fn: "plainStep", label: "safe:step" }] },
       registry,
+      CA as any,
     );
 
     (flow as any).withRuntimeCompliance([
@@ -533,6 +543,7 @@ describe("JsonFlowBuilder.build + withTrace", () => {
         ],
       },
       registry,
+      CA as any,
     );
 
     const trace = (flow as any).withTrace();
@@ -555,6 +566,7 @@ describe("JsonFlowBuilder.build + withTrace", () => {
         ],
       },
       registry,
+      CA as any,
     );
 
     const trace = (flow as any).withTrace();
@@ -576,6 +588,7 @@ describe("JsonFlowBuilder.build + withTrace", () => {
         ],
       },
       registry,
+      CA as any,
     );
 
     const trace = (flow as any).withTrace();
@@ -595,6 +608,7 @@ describe("JsonFlowBuilder.build + withTrace", () => {
     const flow = JsonFlowBuilder.build(
       { steps: [{ type: "fn", fn: "fn" }] },
       registry,
+      CA as any,
     );
 
     const trace = (flow as any).withTrace();
@@ -620,6 +634,7 @@ describe("JsonFlowBuilder.build + withDryRun", () => {
     const flow = JsonFlowBuilder.build(
       { steps: [{ type: "fn", fn: "riskyFn" }] },
       registry,
+      CA as any,
     );
 
     (flow as any).withDryRun();
@@ -638,6 +653,7 @@ describe("JsonFlowBuilder.build + withDryRun", () => {
     const flow = JsonFlowBuilder.build(
       { steps: [{ type: "fn", fn: "expensive", label: "expensive:op" }] },
       registry,
+      CA as any,
     );
 
     (flow as any).withDryRun();
@@ -672,6 +688,7 @@ describe("JsonFlowBuilder.build + withDryRun", () => {
         ],
       },
       registry,
+      CA as any,
     );
 
     (flow as any).withDryRun();
@@ -699,6 +716,7 @@ describe("JsonFlowBuilder.build + analyzeFlow", () => {
         ],
       },
       registry,
+      CA as any,
     );
 
     const map = (flow as any).analyzeFlow();
@@ -724,6 +742,7 @@ describe("JsonFlowBuilder.build + analyzeFlow", () => {
         ],
       },
       registry,
+      CA as any,
     );
 
     const map = (flow as any).analyzeFlow();
@@ -752,6 +771,7 @@ describe("JsonFlowBuilder.build + analyzeFlow", () => {
         ],
       },
       registry,
+      CA as any,
     );
 
     const map = (flow as any).analyzeFlow();
@@ -779,6 +799,7 @@ describe("JsonFlowBuilder.build + analyzeFlow", () => {
         ],
       },
       registry,
+      CA as any,
     );
 
     const map = (flow as any).analyzeFlow();
@@ -803,6 +824,7 @@ describe("JsonFlowBuilder.build + analyzeFlow", () => {
         ],
       },
       registry,
+      CA as any,
     );
 
     const map = (flow as any).analyzeFlow();
