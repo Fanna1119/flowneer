@@ -19,7 +19,7 @@ import {
 } from "../plugins/telemetry/telemetry";
 import { executeTools, withTools } from "../plugins/tools/withTools";
 import { resumeFlow, withHumanNode } from "../plugins/agent/withHumanNode";
-import { withReActLoop } from "../plugins/agent/withReActLoop";
+import { withReActLoop } from "../presets/agent/withReActLoop";
 
 // Register all needed plugins for this file
 FlowBuilder.use(withVerbose);

@@ -16,14 +16,14 @@ import {
   executeTools,
 } from "../plugins/tools";
 import type { Tool, ToolCall } from "../plugins/tools";
-import { withReActLoop } from "../plugins/agent/withReActLoop";
+import { withReActLoop } from "../presets/agent/withReActLoop";
 import { withHumanNode, resumeFlow } from "../plugins/agent/withHumanNode";
 import {
   supervisorCrew,
   sequentialCrew,
   hierarchicalCrew,
   roundRobinDebate,
-} from "../plugins/agent/patterns";
+} from "../presets/agent";
 import {
   BufferWindowMemory,
   SummaryMemory,

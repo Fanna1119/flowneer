@@ -15,11 +15,8 @@ import { withFlowAnalyzer } from "../plugins/dev/withFlowAnalyzer";
 import { withDryRun } from "../plugins/dev/withDryRun";
 
 // Config
-import {
-  JsonFlowBuilder,
-  ConfigValidationError,
-  validate,
-} from "../plugins/config";
+import { JsonFlowBuilder, ConfigValidationError } from "../presets/config";
+import { validate } from "../plugins/config";
 
 FlowBuilder.use(withAuditFlow);
 FlowBuilder.use(withRuntimeCompliance);

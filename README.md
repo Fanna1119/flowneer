@@ -23,6 +23,7 @@ bun add flowneer
 ```
 
 ## For LLM Agents
+
 [llms.txt](https://fanna1119.github.io/flowneer/llms.txt)
 [llms-full.txt](https://fanna1119.github.io/flowneer/llms-full.txt)
 
@@ -49,6 +50,70 @@ await new FlowBuilder<State>()
 ```
 
 Every step receives a **shared state object** (`s`) that you mutate directly. That's the whole data model.
+
+## Performance
+
+All control-flow primitives are pure in-memory. Below are nanosecond-level timings measured with [mitata](https://github.com/evanwashere/mitata) on the same machine — run `bun run bench` to reproduce on yours.
+
+> **Machine:** Apple M1 Pro · Bun 1.3.10
+
+### Sequential steps
+
+| Benchmark                   | avg       | vs baseline |
+| --------------------------- | --------- | ----------- |
+| plain async fn _(baseline)_ | 44.96 ns  | —           |
+| FlowBuilder · 1 step        | 688.71 ns | 15×         |
+| FlowBuilder · 5 steps       | 2.04 µs   | 45×         |
+| FlowBuilder · 10 steps      | 3.79 µs   | 84×         |
+
+~**380 ns per step** of pure orchestration overhead — each step drives immer-style draft scoping, hook dispatch, and anchor resolution.
+
+### Batch processing
+
+| Benchmark           | avg       | ops/sec |
+| ------------------- | --------- | ------- |
+| batch · 100 items   | 60.27 µs  | ~16 600 |
+| batch · 1 000 items | 577.48 µs | ~1 730  |
+
+~**580 ns per item** with linear scaling.
+
+### Parallel fan-out
+
+| Benchmark                        | avg       | vs Promise.all baseline |
+| -------------------------------- | --------- | ----------------------- |
+| Promise.all · 4 fns _(baseline)_ | 488.92 ns | —                       |
+| FlowBuilder.parallel · 4 fns     | 1.23 µs   | 2.5×                    |
+| FlowBuilder.parallel · 8 fns     | 1.85 µs   | 3.8×                    |
+| FlowBuilder.parallel · 16 fns    | 3.12 µs   | 6.4×                    |
+
+### Branch routing
+
+| Benchmark                    | avg       | vs if/else baseline |
+| ---------------------------- | --------- | ------------------- |
+| plain if/else _(baseline)_   | 50.29 ns  | —                   |
+| FlowBuilder.branch · 2 paths | 624.98 ns | 12×                 |
+| FlowBuilder.branch · 4 paths | 606.01 ns | 12×                 |
+| FlowBuilder.branch · 8 paths | 612.26 ns | 12×                 |
+
+Routing cost is **constant** regardless of branch count — the router function is called once and the result key is directly dispatched.
+
+### stream() overhead
+
+| Benchmark                          | avg      | vs .run() |
+| ---------------------------------- | -------- | --------- |
+| `.run()` · 10 steps _(baseline)_   | 3.88 µs  | —         |
+| `.stream()` · 10 steps (drain all) | 10.91 µs | 2.82×     |
+
+### Hook overhead (10-step flow)
+
+| Benchmark                    | avg     | vs no-hook baseline |
+| ---------------------------- | ------- | ------------------- |
+| no hooks _(baseline)_        | 4.40 µs | —                   |
+| + `beforeStep` / `afterStep` | 5.75 µs | +31%                |
+| + `wrapStep`                 | 6.15 µs | +40%                |
+| + all 7 hooks active         | 7.67 µs | +74%                |
+
+Even with **all seven hook types** registered simultaneously, overhead is under 2×.
 
 ## API
 
@@ -719,7 +784,7 @@ try {
 
 ---
 
-## Multi-agent patterns
+## Multi-agent helpers
 
 Four factory functions compose flows into common multi-agent topologies:
 
@@ -787,7 +852,7 @@ const flow = new FlowBuilder<State>()
 
 ---
 
-## Output parsers
+## Output helpers
 
 Four pure functions parse structured data from LLM text. No plugin registration needed:
 
@@ -1092,7 +1157,7 @@ examples/
   observePlugin.ts       Tracing plugin example
   persistPlugin.ts       Checkpoint plugin example
   clawneer.ts            Full ReAct agent with tool calling
-  streamingServer.ts     SSE streaming server example
+  streamingServer.ts     Native stream() server example
 ```
 
 ## License

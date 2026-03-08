@@ -71,21 +71,9 @@ export {
 } from "./tools/index";
 export type { Tool, ToolParam, ToolCall, ToolResult } from "./tools/index";
 
-// Agent
-export {
-  withReActLoop,
-  withHumanNode,
-  resumeFlow,
-  supervisorCrew,
-  sequentialCrew,
-  hierarchicalCrew,
-  roundRobinDebate,
-} from "./agent/index";
-export type {
-  ThinkResult,
-  ReActLoopOptions,
-  HumanNodeOptions,
-} from "./agent/index";
+// Agent plugins
+export { withHumanNode, resumeFlow } from "./agent/index";
+export type { HumanNodeOptions } from "./agent/index";
 
 // Memory
 export {
@@ -101,7 +89,7 @@ export type {
   SummaryMemoryOptions,
 } from "./memory/index";
 
-// Output Parsers
+// Output helpers
 export {
   parseJsonOutput,
   parseListOutput,
@@ -157,17 +145,12 @@ export type {
   PiiMatch,
 } from "./compliance/index";
 
-// Config / JSON-driven flows
-export {
-  JsonFlowBuilder,
-  ConfigValidationError,
-  validate,
-} from "./config/index";
+// Config — types and validate helper
+export { validate } from "./config/index";
 export type {
   FlowConfig,
   StepConfig,
   FnRegistry,
   ValidationError,
   ValidationResult,
-  CustomStepBuilder,
 } from "./config/index";

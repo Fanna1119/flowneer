@@ -1,6 +1,6 @@
 # Plugins Overview
 
-Flowneer ships with 30+ plugins across 10 categories. All plugins follow the same pattern: register once globally with `FlowBuilder.use()`, then call the added method on any `FlowBuilder` instance.
+Flowneer ships with a focused set of plugin methods plus a smaller set of helper modules. Plugin methods follow the same pattern: register once globally with `FlowBuilder.use()`, then call the added method on any `FlowBuilder` instance. Helper utilities such as `createAgent`, crew patterns, and output parsers are imported directly and do not participate in plugin registration.
 
 ```typescript
 import { FlowBuilder } from "flowneer";
@@ -13,24 +13,24 @@ const flow = new FlowBuilder<MyState>().withTiming().startWith(myStep);
 
 ## Plugin Categories
 
-| Category                | Plugins                                                                                                                                       |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| **LLM**                 | `withCostTracker`, `withRateLimit`, `withStructuredOutput`, `withTokenBudget`                                                                 |
-| **Memory**              | `withMemory`, `BufferWindowMemory`, `KVMemory`, `SummaryMemory`                                                                               |
-| **Observability**       | `withCallbacks`, `withHistory`, `withInterrupts`, `withTiming`, `withVerbose`                                                                 |
-| **Persistence**         | `withCheckpoint`, `withAuditLog`, `withReplay`, `withVersionedCheckpoint`                                                                     |
-| **Resilience**          | `withCircuitBreaker`, `withTimeout`, `withFallback`, `withCycles`                                                                             |
-| **Dev / Testing**       | `withDryRun`, `withMocks`, `withStepLimit`, `parallelAtomic`                                                                                  |
-| **Agent**               | `withReActLoop`, `humanNode`, `resumeFlow`, `tool`, `createAgent`, `supervisorCrew`, `sequentialCrew`, `hierarchicalCrew`, `roundRobinDebate` |
-| **Tools**               | `withTools`, `ToolRegistry`, `executeTool`, `executeTools`                                                                                    |
-| **Messaging**           | `withChannels`, `withStream`, `emit`, `sendTo`, `receiveFrom`                                                                                 |
-| **Output Parsers**      | `parseJsonOutput`, `parseListOutput`, `parseRegexOutput`, `parseMarkdownTable`                                                                |
-| **Telemetry**           | `TelemetryDaemon`, `consoleExporter`                                                                                                          |
-| **Graph**               | `addNode`, `addEdge`, `compile`, `withExportGraph`, `withExportFlow`                                                                          |
-| **Eval**                | `runEvalSuite`, `exactMatch`, `f1Score`, `retrievalPrecision`                                                                                 |
-| **Compliance**          | `withAuditFlow`, `withRuntimeCompliance`, `scanShared`                                                                                        |
-| **Dev / Testing** (new) | `withFlowAnalyzer` (`analyzeFlow`, `withTrace`)                                                                                               |
-| **Config**              | `JsonFlowBuilder` (`build`, `validate`, `registerStepBuilder`)                                                                                |
+| Category           | Surface                                                                                           |
+| ------------------ | ------------------------------------------------------------------------------------------------- |
+| **LLM**            | `withCostTracker`, `withRateLimit`, `withStructuredOutput`, `withTokenBudget`                     |
+| **Memory**         | `withMemory`, `BufferWindowMemory`, `KVMemory`, `SummaryMemory`                                   |
+| **Observability**  | `withCallbacks`, `withHistory`, `withInterrupts`, `withTiming`, `withVerbose`                     |
+| **Persistence**    | `withCheckpoint`, `withAuditLog`, `withReplay`, `withVersionedCheckpoint`                         |
+| **Resilience**     | `withCircuitBreaker`, `withTimeout`, `withFallback`, `withCycles`                                 |
+| **Dev / Testing**  | `withDryRun`, `withMocks`, `withStepLimit`, `withAtomicUpdates`, `withFlowAnalyzer`               |
+| **Agent plugins**  | `withReActLoop`, `withHumanNode`, `resumeFlow`                                                    |
+| **Agent helpers**  | `tool`, `createAgent`, `supervisorCrew`, `sequentialCrew`, `hierarchicalCrew`, `roundRobinDebate` |
+| **Tools**          | `withTools`, `ToolRegistry`, `executeTool`, `executeTools`                                        |
+| **Messaging**      | `withChannels`, `withStream`, `emit`, `sendTo`, `receiveFrom`                                     |
+| **Output helpers** | `parseJsonOutput`, `parseListOutput`, `parseRegexOutput`, `parseMarkdownTable`                    |
+| **Telemetry**      | `withTelemetry`, `TelemetryDaemon`, `consoleExporter`, `otlpExporter`                             |
+| **Graph**          | `withGraph`, `withExportGraph`, `withExportFlow`                                                  |
+| **Eval**           | `runEvalSuite`, `exactMatch`, `containsMatch`, `f1Score`, `retrievalPrecision`, `retrievalRecall` |
+| **Compliance**     | `withAuditFlow`, `withRuntimeCompliance`, `scanShared`                                            |
+| **Config**         | `JsonFlowBuilder`, `validate`                                                                     |
 
 ## Import Paths
 
@@ -78,9 +78,11 @@ import {
 import { withDryRun, withMocks, withStepLimit } from "flowneer/plugins/dev";
 import { withAtomicUpdates } from "flowneer/plugins/dev";
 
-// Agent
+// Agent plugins
 import { withReActLoop } from "flowneer/plugins/agent";
 import { withHumanNode, resumeFlow } from "flowneer/plugins/agent";
+
+// Agent helpers
 import { tool, createAgent } from "flowneer/plugins/agent";
 import {
   supervisorCrew,
@@ -101,7 +103,7 @@ import {
 import { withChannels, sendTo, receiveFrom } from "flowneer/plugins/messaging";
 import { withStream, emit } from "flowneer/plugins/messaging";
 
-// Output
+// Output helpers
 import { parseJsonOutput } from "flowneer/plugins/output";
 import { parseListOutput } from "flowneer/plugins/output";
 import { parseRegexOutput } from "flowneer/plugins/output";

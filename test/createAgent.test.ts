@@ -3,13 +3,13 @@
 // ---------------------------------------------------------------------------
 
 import { describe, expect, test, mock } from "bun:test";
-import { tool, createAgent } from "../plugins/agent/createAgent";
+import { tool, createAgent } from "../presets/agent";
 import type {
   AgentState,
   LlmAdapter,
   LlmResponse,
   ChatMessage,
-} from "../plugins/agent/createAgent";
+} from "../presets/agent/createAgent";
 import type { ToolCall } from "../plugins/tools";
 
 // ─────────────────────────────────────────────────────────────────────────────

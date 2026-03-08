@@ -1,4 +1,4 @@
-# Multi-agent Patterns
+# Multi-agent Helpers
 
 Factory functions that return pre-configured `FlowBuilder` instances implementing common multi-agent orchestration topologies.
 
