@@ -21,7 +21,7 @@ import {
   sequentialCrew,
   hierarchicalCrew,
   roundRobinDebate,
-} from "../../presets/agent/patterns";
+} from "../../presets/agent";
 import { callLlm } from "../../utils/callLlm";
 
 // ─────────────────────────────────────────────────────────────────────────────

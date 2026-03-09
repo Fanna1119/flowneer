@@ -2,8 +2,27 @@
 // Flowneer — shared internal utilities
 // ---------------------------------------------------------------------------
 
-import type { NumberOrFn } from "../types";
+import type { NumberOrFn, StepMeta, StepFilter } from "../types";
 import type { Step } from "../steps";
+
+export function matchesFilter(filter: StepFilter, meta: StepMeta): boolean {
+  if (!Array.isArray(filter)) return filter(meta);
+  if (meta.label === undefined) return false;
+  const label = meta.label;
+  return filter.some((pattern) => {
+    if (!pattern.includes("*")) return pattern === label;
+    // Convert glob pattern (* = any substring) to a RegExp
+    const re = new RegExp(
+      "^" +
+        pattern
+          .split("*")
+          .map((s) => s.replace(/[.+?^${}()|[\]\\]/g, "\\$&"))
+          .join(".*") +
+        "$",
+    );
+    return re.test(label);
+  });
+}
 
 export function resolveNumber<S, P extends Record<string, unknown>>(
   val: NumberOrFn<S, P> | undefined,
@@ -45,9 +64,8 @@ export function withTimeout<T>(ms: number, fn: () => Promise<T>): Promise<T> {
   ]);
 }
 
-export function isAnchorTarget(value: unknown): value is string {
-  return typeof value === "string" && value[0] === "#";
-}
+export const isAnchorTarget = (value: unknown): value is string =>
+  typeof value === "string" && value[0] === "#";
 
 /**
  * Drive a fn step's result to completion.
