@@ -121,4 +121,4 @@ async (s) => {
 
 ## See Also
 
-- [`withReActLoop`](../agent/react-loop.md) — automated ReAct agent loop with tools
+- [`withReActLoop`](../../presets/agent/react-loop.md) — automated ReAct agent loop with tools
