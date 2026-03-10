@@ -152,4 +152,4 @@ Every step sets `s.__stepCost` (in USD). `withCostTracker` accumulates these int
 - [withStructuredOutput](../plugins/llm/structured-output.md)
 - [withCostTracker](../plugins/llm/cost-tracker.md)
 - [withRateLimit](../plugins/llm/rate-limit.md)
-- [Multi-agent Patterns](../plugins/agent/patterns.md) — `supervisorCrew` is a clean alternative for this topology
+- [Multi-agent Patterns](../presets/agent/patterns.md) — `supervisorCrew` is a clean alternative for this topology

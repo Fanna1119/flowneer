@@ -2,7 +2,7 @@
 
 Build a reusable tool-calling agent using `createAgent` and `tool()`. The agent automatically loops through think → tool calls → observation until it produces a final answer.
 
-**Plugins used:** `createAgent`, `tool()` (from `flowneer/plugins/agent`)
+**Plugins used:** `createAgent`, `tool()` (from `flowneer/presets/agent`)
 
 ---
 
@@ -11,8 +11,8 @@ Build a reusable tool-calling agent using `createAgent` and `tool()`. The agent 
 ```typescript
 import "dotenv/config";
 import { OpenAI } from "openai";
-import { tool, createAgent } from "flowneer/plugins/agent";
-import type { LlmAdapter, AgentState } from "flowneer/plugins/agent";
+import { tool, createAgent } from "flowneer/presets/agent";
+import type { LlmAdapter, AgentState } from "flowneer/presets/agent";
 
 // ─── Tools ───────────────────────────────────────────────────────────────────
 
@@ -134,6 +134,6 @@ for await (const event of agent.stream(state)) {
 
 ## See also
 
-- [createAgent & tool() reference](../plugins/agent/create-agent.md)
-- [withReActLoop](../plugins/agent/react-loop.md)
+- [createAgent & tool() reference](../presets/agent/create-agent.md)
+- [withReActLoop](../presets/agent/react-loop.md)
 - [withTools & ToolRegistry](../plugins/tools/overview.md)
