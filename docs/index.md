@@ -21,7 +21,7 @@ features:
   - title: Fluent & Composable
     details: Chain steps with .startWith(), .then(), .branch(), .loop(), .batch(), and .parallel() — all through one FlowBuilder class.
   - title: Plugin System
-    details: Extend any flow with hooks registered via FlowBuilder.use(). The stable surface stays focused on a smaller set of core plugins, with helpers available when you need them.
+    details: Extend any flow with hooks registered via FlowBuilder.extend(). The stable surface stays focused on a smaller set of core plugins, with helpers available when you need them.
   - title: LLM-Native
     details: First-class support for structured output validation, tool calling, ReAct agent loops, human-in-the-loop interrupts, and streaming token output.
   - title: Zero Dependencies
