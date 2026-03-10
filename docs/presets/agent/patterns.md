@@ -10,7 +10,7 @@ import {
   sequentialCrew,
   hierarchicalCrew,
   roundRobinDebate,
-} from "flowneer/plugins/agent";
+} from "flowneer/presets/agent";
 ```
 
 ---

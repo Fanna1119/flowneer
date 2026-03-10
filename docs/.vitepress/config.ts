@@ -20,6 +20,7 @@ export default defineConfig({
       { text: "Home", link: "/" },
       { text: "Core", link: "/core/getting-started" },
       { text: "Plugins", link: "/plugins/overview" },
+      { text: "Presets", link: "/presets/" },
       { text: "Recipes", link: "/recipes/" },
     ],
 
@@ -138,16 +139,42 @@ export default defineConfig({
         ],
       },
       {
-        text: "Plugins — Config",
-        items: [{ text: "JsonFlowBuilder", link: "/plugins/config/overview" }],
+        text: "Plugins — Agent",
+        items: [{ text: "humanNode", link: "/plugins/agent/human-node" }],
       },
       {
-        text: "Plugins — Agent",
+        text: "Presets",
+        items: [{ text: "Overview", link: "/presets/" }],
+      },
+      {
+        text: "Presets — Agent",
         items: [
-          { text: "createAgent & tool()", link: "/plugins/agent/create-agent" },
-          { text: "withReActLoop", link: "/plugins/agent/react-loop" },
-          { text: "humanNode", link: "/plugins/agent/human-node" },
-          { text: "Multi-agent Patterns", link: "/plugins/agent/patterns" },
+          { text: "createAgent & tool()", link: "/presets/agent/create-agent" },
+          { text: "withReActLoop", link: "/presets/agent/react-loop" },
+          { text: "Multi-agent Patterns", link: "/presets/agent/patterns" },
+        ],
+      },
+      {
+        text: "Presets — Config",
+        items: [{ text: "JsonFlowBuilder", link: "/presets/config/overview" }],
+      },
+      {
+        text: "Presets — RAG",
+        items: [
+          { text: "Overview", link: "/presets/rag/" },
+          { text: "ragPipeline", link: "/presets/rag/rag-pipeline" },
+          { text: "iterativeRag", link: "/presets/rag/iterative-rag" },
+        ],
+      },
+      {
+        text: "Presets — Pipeline",
+        items: [
+          { text: "Overview", link: "/presets/pipeline/" },
+          {
+            text: "generateUntilValid",
+            link: "/presets/pipeline/generate-until-valid",
+          },
+          { text: "mapReduceLlm", link: "/presets/pipeline/map-reduce-llm" },
         ],
       },
       {
@@ -191,7 +218,10 @@ export default defineConfig({
       },
       {
         text: "Reference",
-        items: [{ text: "Plugins Overview", link: "/plugins/overview" }],
+        items: [
+          { text: "Plugins Overview", link: "/plugins/overview" },
+          { text: "Presets Overview", link: "/presets/" },
+        ],
       },
     ],
 
