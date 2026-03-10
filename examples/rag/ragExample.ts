@@ -23,7 +23,7 @@ import { ragPipeline, iterativeRag } from "../../presets/rag";
 const DOCS = [
   "Flowneer is a zero-dependency fluent flow builder for AI agents.",
   "FlowBuilder supports sequential, parallel, loop, branch, and batch steps.",
-  "Plugins extend FlowBuilder via prototype augmentation using FlowBuilder.use().",
+  "Plugins extend FlowBuilder via FlowBuilder.extend([...plugins]) which creates a subclass.",
   "Presets are higher-level factories that compose plugins into reusable patterns.",
   "The ReAct loop preset implements think → tool-call → observation cycles.",
   "The RAG preset wires retrieve → augment → generate in three lines.",

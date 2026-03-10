@@ -40,10 +40,10 @@ const messages = memory.get();
 import { FlowBuilder } from "flowneer";
 import { withMemory, BufferWindowMemory } from "flowneer/plugins/memory";
 
-FlowBuilder.use(withMemory);
+const AppFlow = FlowBuilder.extend([withMemory]);
 
 const memory = new BufferWindowMemory({ maxMessages: 10 });
-const flow = new FlowBuilder<ChatState>()
+const flow = new AppFlow<ChatState>()
   .withMemory(memory)
   .startWith(async (s) => {
     s.__memory!.add({ role: "user", content: s.input });

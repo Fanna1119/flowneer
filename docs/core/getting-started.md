@@ -51,18 +51,17 @@ async (s) => {
 
 ## Registering Plugins
 
-Plugins extend `FlowBuilder` with new methods. Register a plugin once globally with `FlowBuilder.use()` before creating any flows.
+Plugins extend `FlowBuilder` with new methods. Use `FlowBuilder.extend([...plugins])` to create a subclass that has those methods available.
 
 ```typescript
 import { FlowBuilder } from "flowneer";
 import { withTiming } from "flowneer/plugins/observability";
 import { withCostTracker } from "flowneer/plugins/llm";
 
-FlowBuilder.use(withTiming);
-FlowBuilder.use(withCostTracker);
+const AppFlow = FlowBuilder.extend([withTiming, withCostTracker]);
 
-// Now all FlowBuilder instances have .withTiming() and .withCostTracker()
-const flow = new FlowBuilder<State>()
+// Now all AppFlow instances have .withTiming() and .withCostTracker()
+const flow = new AppFlow<State>()
   .withTiming()
   .withCostTracker()
   .startWith(myStep);

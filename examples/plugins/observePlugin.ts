@@ -2,8 +2,8 @@
 // Observe plugin — adds `.withTracing(fn)` to FlowBuilder
 // ---------------------------------------------------------------------------
 // Usage:
-//   FlowBuilder.use(observePlugin);
-//   const flow = new FlowBuilder<MyState>()
+//   const AppFlow = FlowBuilder.extend([observePlugin]);
+//   const flow = new AppFlow<MyState>()
 //     .withTracing((meta, event) => console.log(event, meta))
 //     .startWith(step1)
 //     .then(step2);

@@ -98,7 +98,8 @@ this._setHooks({
 ### Fallback on failure
 
 ```typescript
-FlowBuilder.use(withFallback);
+const AppFlow = FlowBuilder.extend([withFallback]);
+const flow = new AppFlow();
 flow.withFallback(async (s) => {
   s.result = s.__fallbackError.message;
   // flow continues normally after this
@@ -108,14 +109,16 @@ flow.withFallback(async (s) => {
 ### Circuit breaker
 
 ```typescript
-FlowBuilder.use(withCircuitBreaker);
+const AppFlow = FlowBuilder.extend([withCircuitBreaker]);
+const flow = new AppFlow();
 flow.withCircuitBreaker({ maxFailures: 3, resetMs: 30_000 });
 ```
 
 ### Timeout
 
 ```typescript
-FlowBuilder.use(withTimeout);
+const AppFlow = FlowBuilder.extend([withTimeout]);
+const flow = new AppFlow();
 flow.withTimeout(5000); // 5 s per step
 // or per-step:
 .then(slowStep, { timeoutMs: 10_000 })

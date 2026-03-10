@@ -5,17 +5,18 @@ what you're building and how broadly it should apply.
 
 | Mechanism                               | Scope                   | Use for                                           |
 | --------------------------------------- | ----------------------- | ------------------------------------------------- |
-| `FlowBuilder.use(plugin)`               | All instances, globally | Adding new builder methods (e.g. `withTiming()`)  |
+| `FlowBuilder.extend([plugins])`         | Subclass, not global    | Adding new builder methods (e.g. `withTiming()`)  |
 | `flow.with([plugins])`                  | One specific instance   | Per-flow configuration (hooks, rate limits, etc.) |
 | `CoreFlowBuilder.registerStepType(...)` | All instances, globally | New first-class step types                        |
 | `flow.add(fragment)`                    | One specific flow       | Composing reusable partial flows                  |
 
 ---
 
-## `FlowBuilder.use(plugin)` — prototype plugin
+## `FlowBuilder.extend([plugins])` — subclass plugin
 
-Adds new **methods** to every `FlowBuilder` instance by patching the prototype.
-This is the standard mechanism for publishable plugins.
+Creates an isolated **subclass** of `FlowBuilder` with new methods mixed in.
+This is the standard mechanism for publishable plugins — it never mutates the
+base class.
 
 ```typescript
 import { FlowBuilder } from "flowneer";
@@ -38,8 +39,8 @@ export const withTiming: FlowneerPlugin = {
   },
 };
 
-// Register once at startup — available on every instance afterwards
-FlowBuilder.use(withTiming);
+// Create a subclass — never touches FlowBuilder.prototype
+const AppFlow = FlowBuilder.extend([withTiming]);
 ```
 
 Add TypeScript types via declaration merging:
@@ -52,15 +53,23 @@ declare module "flowneer" {
 }
 ```
 
-Then use it on any instance:
+Then use it on any `AppFlow` instance:
 
 ```typescript
-new FlowBuilder<State>().withTiming().then(step).run(shared);
+new AppFlow<State>().withTiming().then(step).run(shared);
+```
+
+Chain `extend()` to layer plugins:
+
+```typescript
+const BaseFlow = FlowBuilder.extend([withTiming]);
+const AppFlow = BaseFlow.extend([withRateLimit]); // has both
 ```
 
 ::: tip When to use this
-Publish as an npm package, or register once in your app's bootstrap file.
-Methods become available everywhere without any per-instance setup.
+Publish as an npm package, or create your project's `AppFlow` once and import it
+everywhere. Methods become available on all instances of the subclass without
+affecting the base `FlowBuilder` or other subclasses.
 :::
 
 ---
@@ -108,14 +117,14 @@ Use `with()` when plugin settings vary per flow (e.g. different rate limits on
 different pipelines), or when you don't want to patch the global prototype.
 :::
 
-### Difference from `FlowBuilder.use()`
+### Difference from `FlowBuilder.extend()`
 
-|             | `FlowBuilder.use(plugin)`                   | `flow.with([plugins])`               |
-| ----------- | ------------------------------------------- | ------------------------------------ |
-| **Type**    | `FlowneerPlugin` — an object of methods     | `InstancePlugin` — a setup function  |
-| **Effect**  | Patches `FlowBuilder.prototype` permanently | Registers hooks on one instance      |
-| **Scope**   | All instances, present and future           | Only this instance                   |
-| **Purpose** | Adding new builder methods                  | Configuring hooks on a specific flow |
+|             | `FlowBuilder.extend([plugins])`         | `flow.with([plugins])`               |
+| ----------- | --------------------------------------- | ------------------------------------ |
+| **Type**    | `FlowneerPlugin[]` — objects of methods | `InstancePlugin` — a setup function  |
+| **Effect**  | Creates an isolated subclass            | Registers hooks on one instance      |
+| **Scope**   | All instances of the resulting subclass | Only this instance                   |
+| **Purpose** | Adding new builder methods              | Configuring hooks on a specific flow |
 
 ---
 
@@ -141,12 +150,14 @@ const sleepHandler: StepHandler = async (step, ctx) => {
 CoreFlowBuilder.registerStepType("sleep", sleepHandler);
 
 // 3. Add a builder method that pushes the step descriptor
-FlowBuilder.use({
-  sleep(this: any, ms: number) {
-    this.steps.push({ type: "sleep", ms });
-    return this;
+const AppFlow = FlowBuilder.extend([
+  {
+    sleep(this: any, ms: number) {
+      this.steps.push({ type: "sleep", ms });
+      return this;
+    },
   },
-});
+]);
 ```
 
 TypeScript types:
@@ -205,5 +216,5 @@ building blocks only.
 
 ::: tip When to use this
 Use fragments to share **step sequences** between flows. Use `with()` to share
-**hook behaviour**. Use `FlowBuilder.use()` to share **builder methods**.
+**hook behaviour**. Use `FlowBuilder.extend()` to share **builder methods**.
 :::

@@ -8,7 +8,7 @@ Accumulates per-step cost values stored in `shared.__stepCost` into a running to
 import { FlowBuilder } from "flowneer";
 import { withCostTracker } from "flowneer/plugins/llm";
 
-FlowBuilder.use(withCostTracker);
+const AppFlow = FlowBuilder.extend([withCostTracker]);
 ```
 
 ## Usage
@@ -21,7 +21,7 @@ interface State {
   __cost?: number;
 }
 
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .withCostTracker()
   .startWith(async (s) => {
     const { text, usage } = await callLlmWithUsage(s.prompt);

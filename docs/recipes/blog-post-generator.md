@@ -18,9 +18,11 @@ import {
 } from "flowneer/plugins/llm";
 import { callLlm, callLlmWithUsage } from "./utils/callLlm"; // your LLM helper
 
-FlowBuilder.use(withCostTracker);
-FlowBuilder.use(withRateLimit);
-FlowBuilder.use(withStructuredOutput);
+const AppFlow = FlowBuilder.extend([
+  withCostTracker,
+  withRateLimit,
+  withStructuredOutput,
+]);
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
@@ -37,7 +39,7 @@ interface BlogState {
 
 // ─── Flow ────────────────────────────────────────────────────────────────────
 
-const blogFlow = new FlowBuilder<BlogState>()
+const blogFlow = new AppFlow<BlogState>()
   .withCostTracker()
   .withRateLimit({ requestsPerMinute: 60 })
 

@@ -8,7 +8,7 @@ Insert a human-in-the-loop pause point into a flow. When the step executes it th
 import { FlowBuilder } from "flowneer";
 import { withHumanNode } from "flowneer/plugins/agent";
 
-FlowBuilder.use(withHumanNode);
+const AppFlow = FlowBuilder.extend([withHumanNode]);
 ```
 
 ## Usage
@@ -24,7 +24,7 @@ interface State {
   __humanPrompt?: string;
 }
 
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .startWith(async (s) => {
     s.draft = await generateDraft(s.topic);
   })

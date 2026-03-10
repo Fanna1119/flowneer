@@ -8,13 +8,13 @@ Implements the circuit-breaker pattern at the flow level. After `maxFailures` co
 import { FlowBuilder } from "flowneer";
 import { withCircuitBreaker } from "flowneer/plugins/resilience";
 
-FlowBuilder.use(withCircuitBreaker);
+const AppFlow = FlowBuilder.extend([withCircuitBreaker]);
 ```
 
 ## Usage
 
 ```typescript
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .withCircuitBreaker({ maxFailures: 3, resetMs: 30_000 })
   .startWith(callExternalApi)
   .then(processResult);

@@ -8,7 +8,7 @@ Writes an immutable audit entry to a store after each step — both successful c
 import { FlowBuilder } from "flowneer";
 import { withAuditLog } from "flowneer/plugins/persistence";
 
-FlowBuilder.use(withAuditLog);
+const AppFlow = FlowBuilder.extend([withAuditLog]);
 ```
 
 ## The `AuditLogStore` Interface
@@ -35,7 +35,7 @@ const store: AuditLogStore<State> = {
   append: (entry) => log.push(entry),
 };
 
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .withAuditLog(store)
   .startWith(stepA)
   .then(stepB)

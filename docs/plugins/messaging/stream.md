@@ -8,7 +8,7 @@ Push-based streaming for token-by-token or progress output. Register a subscribe
 import { FlowBuilder } from "flowneer";
 import { withStream, emit } from "flowneer/plugins/messaging";
 
-FlowBuilder.use(withStream);
+const AppFlow = FlowBuilder.extend([withStream]);
 ```
 
 ## Usage
@@ -16,7 +16,7 @@ FlowBuilder.use(withStream);
 ```typescript
 import { emit } from "flowneer/plugins/messaging";
 
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .withStream((chunk) => {
     process.stdout.write(String(chunk));
   })

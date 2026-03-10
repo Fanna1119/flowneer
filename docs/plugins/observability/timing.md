@@ -8,7 +8,7 @@ Records the wall-clock duration of each step in `shared.__timings`, keyed by ste
 import { FlowBuilder } from "flowneer";
 import { withTiming } from "flowneer/plugins/observability";
 
-FlowBuilder.use(withTiming);
+const AppFlow = FlowBuilder.extend([withTiming]);
 ```
 
 ## Usage
@@ -19,7 +19,7 @@ interface State {
   __timings?: Record<number, number>;
 }
 
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .withTiming()
   .startWith(async (s) => {
     s.data = await fetchData();

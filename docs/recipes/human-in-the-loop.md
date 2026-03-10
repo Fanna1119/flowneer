@@ -16,8 +16,7 @@ import { withHumanNode, resumeFlow } from "flowneer/plugins/agent";
 import { withCheckpoint } from "flowneer/plugins/persistence";
 import { InterruptError } from "flowneer";
 
-FlowBuilder.use(withHumanNode);
-FlowBuilder.use(withCheckpoint);
+const AppFlow = FlowBuilder.extend([withHumanNode, withCheckpoint]);
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
@@ -36,7 +35,7 @@ const checkpointStore = new Map<string, unknown>();
 
 // ─── Flow ────────────────────────────────────────────────────────────────────
 
-const contentFlow = new FlowBuilder<ContentState>()
+const contentFlow = new AppFlow<ContentState>()
   .withCheckpoint({
     // Persist state so it survives the process restart between pause and resume
     save: async (id, data) => {
@@ -142,7 +141,7 @@ await resumeJob("article-42", "approve");
 Chain multiple approval steps for a multi-stage review pipeline:
 
 ```typescript
-const publishFlow = new FlowBuilder<State>()
+const publishFlow = new AppFlow<State>()
   .startWith(generateDraft)
   .withHumanNode({
     prompt: (s) => `Review draft:\n${s.draft}`,

@@ -1,14 +1,14 @@
 # Plugins Overview
 
-Flowneer ships with a focused set of plugin methods plus a smaller set of helper modules. Plugin methods follow the same pattern: register once globally with `FlowBuilder.use()`, then call the added method on any `FlowBuilder` instance. Helper utilities such as `createAgent`, crew patterns, and output parsers are imported directly and do not participate in plugin registration.
+Flowneer ships with a focused set of plugin methods plus a smaller set of helper modules. Plugin methods follow the same pattern: create a subclass with `FlowBuilder.extend([...plugins])`, then call the added methods on any instance of that subclass. Helper utilities such as `createAgent`, crew patterns, and output parsers are imported directly and do not participate in plugin registration.
 
 ```typescript
 import { FlowBuilder } from "flowneer";
 import { withTiming } from "flowneer/plugins/observability";
 
-FlowBuilder.use(withTiming);
+const AppFlow = FlowBuilder.extend([withTiming]);
 
-const flow = new FlowBuilder<MyState>().withTiming().startWith(myStep);
+const flow = new AppFlow<MyState>().withTiming().startWith(myStep);
 ```
 
 ## Plugin Categories

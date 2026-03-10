@@ -2,8 +2,8 @@
 // Persist plugin — adds `.withCheckpoint(store)` to FlowBuilder
 // ---------------------------------------------------------------------------
 // Usage:
-//   FlowBuilder.use(persistPlugin);
-//   const flow = new FlowBuilder<MyState>()
+//   const AppFlow = FlowBuilder.extend([persistPlugin]);
+//   const flow = new AppFlow<MyState>()
 //     .withCheckpoint({ save: async (i, s) => db.set(id, { i, s }) })
 //     .startWith(step1)
 //     .then(step2);

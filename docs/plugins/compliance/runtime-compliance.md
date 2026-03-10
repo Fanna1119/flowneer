@@ -10,7 +10,7 @@ or silently record violations.
 import { FlowBuilder } from "flowneer";
 import { withRuntimeCompliance } from "flowneer/plugins/compliance";
 
-FlowBuilder.use(withRuntimeCompliance);
+const AppFlow = FlowBuilder.extend([withRuntimeCompliance]);
 ```
 
 ## Usage
@@ -18,9 +18,7 @@ FlowBuilder.use(withRuntimeCompliance);
 ```typescript
 import { withRuntimeCompliance, scanShared } from "flowneer/plugins/compliance";
 
-FlowBuilder.use(withRuntimeCompliance);
-
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .then(fetchUser, { label: "pii:fetchUser" })
   .then(callExternalApi, { label: "external:send" });
 

@@ -12,7 +12,27 @@
   <a href="https://context7.com/fanna1119/flowneer"><img src="https://img.shields.io/badge/-Context7-black?style=flat&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB3aWR0aD0iMjgiIGhlaWdodD0iMjgiIHZpZXdCb3g9IjAgMCAyOCAyOCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjI4IiBoZWlnaHQ9IjI4IiByeD0iNCIgZmlsbD0iIzA1OTY2OSIvPgo8cGF0aCBkPSJNMTAuNTcyNCAxNS4yNTY1QzEwLjU3MjQgMTcuNTAyNSA5LjY2MTMgMTkuMzc3OCA4LjE3ODA1IDIxLjEwNDdIMTEuNjMxOUwxMS42MzE5IDIyLjc3ODZINi4zMzQ1OVYyMS4xODk1QzcuOTU1NTcgMTkuMzU2NiA4LjU4MDY1IDE3Ljg2MjggOC41ODA2NSAxNS4yNTY1TDEwLjU3MjQgMTUuMjU2NVoiIGZpbGw9IndoaXRlIi8+CjxwYXRoIGQ9Ik0xNy40Mjc2IDE1LjI1NjVDMTcuNDI3NiAxNy41MDI1IDE4LjMzODcgMTkuMzc3OCAxOS44MjIgMjEuMTA0N0gxNi4zNjgxVjIyLjc3ODZIMjEuNjY1NFYyMS4xODk1QzIwLjA0NDQgMTkuMzU2NiAxOS40MTk0IDE3Ljg2MjggMTkuNDE5NCAxNS4yNTY1SDE3LjQyNzZaIiBmaWxsPSJ3aGl0ZSIvPgo8cGF0aCBkPSJNMTAuNTcyNCAxMi43NDM1QzEwLjU3MjQgMTAuNDk3NSA5LjY2MTMxIDguNjIyMjQgOC4xNzgwNyA2Ljg5NTMyTDExLjYzMTkgNi44OTUzMlY1LjIyMTM3TDYuMzM0NjEgNS4yMjEzN1Y2LjgxMDU2QzcuOTU1NTggOC42NDM0MyA4LjU4MDY2IDEwLjEzNzMgOC41ODA2NiAxMi43NDM1TDEwLjU3MjQgMTIuNzQzNVoiIGZpbGw9IndoaXRlIi8+CjxwYXRoIGQ9Ik0xNy40Mjc2IDEyLjc0MzVDMTcuNDI3NiAxMC40OTc1IDE4LjMzODcgOC42MjIyNCAxOS44MjIgNi44OTUzMkwxNi4zNjgxIDYuODk1MzJMMTYuMzY4MSA1LjIyMTM4TDIxLjY2NTQgNS4yMjEzOFY2LjgxMDU2QzIwLjA0NDQgOC42NDM0MyAxOS40MTk0IDEwLjEzNzMgMTkuNDE5NCAxMi43NDM1SDE3LjQyNzZaIiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4K" alt="Badge"></a>
 </p>
 
-A tiny, zero-dependency fluent flow builder for TypeScript. Chain steps, branch on conditions, loop, batch-process, and run tasks in parallel — all through a single `FlowBuilder` class. Extend it with plugins for tool calling, ReAct agent loops, human-in-the-loop, memory, structured output, streaming, graph-based flow composition, eval, and more.
+**Flowneer** is a tiny (~3 kB gzipped), zero-dependency TypeScript flow builder that gives you full control over deterministic, stateful LLM agents and workflows.
+
+### Why Flowneer?
+
+- **Ultra-lightweight** — ~3 kB gzipped core, zero dependencies
+- **Fluent & composable** — Chain steps with shared mutable state
+- **Full control flow primitives** — `.startWith()`, `.then()`, `.branch()`, `.loop()`, `.parallel()`, `.batch()`, `.anchor()` jumps
+- **Streaming-first** — Real-time `.stream()` with event/chunk yielding
+- **Precise extensibility** — Subclass with `.extend([plugins])` and scope hooks/plugins exactly where needed (via `StepFilter` globs/predicates)
+- **Production-ready patterns** — Built-in presets for ReAct, sequential crews, supervisor-workers, round-robin debate, refinement loops
+
+### Plugins unlock what you actually need
+
+- Tool calling & registries
+- ReAct / reasoning loops
+- Memory (buffer, summary, KV)
+- Human-in-the-loop interrupts
+- Structured output parsing
+- Rate limiting, retries, timeouts, tracing, eval, graph export/import
+
+No forced abstractions. No monolith. Just a fast, deterministic builder that stays out of your way while giving you structured concurrency, cancellation, observability, and agentic power.
 
 > Flowneer is currently under heavy development with ongoing pattern exploration and architectural refinement. Breaking changes are expected frequently, potentially on a daily basis, as the core design is actively evolving.
 

@@ -17,7 +17,7 @@ import {
 import type { ScoreFn, EvalResult, EvalSummary } from "flowneer/plugins/eval";
 ```
 
-> No `FlowBuilder.use()` registration needed — this plugin exports standalone functions only.
+> No `FlowBuilder.extend()` call needed — this plugin exports standalone functions only.
 
 ## Scoring Functions
 
@@ -189,9 +189,9 @@ Eval works with any flow, including flows that use `withMocks` to replace LLM ca
 ```typescript
 import { withMocks } from "flowneer/plugins/dev";
 
-FlowBuilder.use(withMocks);
+const AppFlow = FlowBuilder.extend([withMocks]);
 
-const testFlow = new FlowBuilder<QAState>()
+const testFlow = new AppFlow<QAState>()
   .then(async (s) => {
     s.output = await callLlm(s.question);
   })

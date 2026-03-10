@@ -8,7 +8,7 @@ Skips step execution for all steps before a given index. Use together with `with
 import { FlowBuilder } from "flowneer";
 import { withReplay } from "flowneer/plugins/persistence";
 
-FlowBuilder.use(withReplay);
+const AppFlow = FlowBuilder.extend([withCheckpoint, withReplay]);
 ```
 
 ## Usage
@@ -16,7 +16,7 @@ FlowBuilder.use(withReplay);
 ```typescript
 // Normal run — save checkpoints
 const checkpoints = new Map<number, State>();
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .withCheckpoint({ save: (i, s) => checkpoints.set(i, structuredClone(s)) })
   .startWith(stepA)
   .then(stepB)

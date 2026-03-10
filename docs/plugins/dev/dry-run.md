@@ -8,7 +8,7 @@ Skips all step bodies while still firing `beforeStep` and `afterStep` hooks. Use
 import { FlowBuilder } from "flowneer";
 import { withDryRun } from "flowneer/plugins/dev";
 
-FlowBuilder.use(withDryRun);
+const AppFlow = FlowBuilder.extend([withDryRun]);
 ```
 
 ## Usage
@@ -16,7 +16,7 @@ FlowBuilder.use(withDryRun);
 ```typescript
 const events: string[] = [];
 
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .withDryRun()
   .withCallbacks({
     onChainStart: (meta) => events.push(`start:${meta.index}`),

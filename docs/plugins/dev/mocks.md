@@ -8,13 +8,13 @@ Replaces step bodies at specific indices with mock functions, while letting all 
 import { FlowBuilder } from "flowneer";
 import { withMocks } from "flowneer/plugins/dev";
 
-FlowBuilder.use(withMocks);
+const AppFlow = FlowBuilder.extend([withMocks]);
 ```
 
 ## Usage
 
 ```typescript
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .startWith(fetchData) // step 0
   .then(processData) // step 1
   .then(saveToDb) // step 2 — will be mocked
@@ -60,8 +60,9 @@ describe("myFlow", () => {
     const notifySpy = vi.fn();
 
     const flow = buildMyFlow();
-    FlowBuilder.use(withMocks);
-    flow.withMocks({
+    const AppFlow = FlowBuilder.extend([withMocks]);
+    const trackedFlow = new AppFlow();
+    trackedFlow.withMocks({
       3: notifySpy, // step 3 = sendNotification
     });
 

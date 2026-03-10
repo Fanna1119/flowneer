@@ -10,7 +10,7 @@ the flow structure is determined at runtime rather than compile time.
 import { JsonFlowBuilder } from "flowneer/plugins/config";
 ```
 
-`JsonFlowBuilder` is a standalone class — no `FlowBuilder.use()` needed.
+`JsonFlowBuilder` is a standalone class — no `FlowBuilder.extend()` call needed.
 
 ---
 

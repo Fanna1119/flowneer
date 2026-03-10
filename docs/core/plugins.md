@@ -27,10 +27,10 @@ export const myPlugin: FlowneerPlugin = {
 import { FlowBuilder } from "flowneer";
 import { myPlugin } from "./myPlugin";
 
-FlowBuilder.use(myPlugin);
+const AppFlow = FlowBuilder.extend([myPlugin]);
 
-// Now available on all FlowBuilder instances:
-new FlowBuilder<State>().myMethod("prefix").startWith(step);
+// Now available on all AppFlow instances:
+new AppFlow<State>().myMethod("prefix").startWith(step);
 ```
 
 ## TypeScript Declaration Merging
@@ -119,6 +119,7 @@ export const withRetryLog: FlowneerPlugin = {
 };
 
 // Usage:
-FlowBuilder.use(withRetryLog);
+const AppFlow = FlowBuilder.extend([withRetryLog]);
+const flow = new AppFlow();
 flow.withRetryLog("MyApp").startWith(riskyStep, { retries: 3 });
 ```

@@ -59,9 +59,9 @@ flow
 Use [`withCycles`](../plugins/resilience/cycles.md) to cap the number of anchor jumps:
 
 ```typescript
-FlowBuilder.use(withCycles);
+const AppFlow = FlowBuilder.extend([withCycles]);
 
-flow
+const flow = new AppFlow()
   .withCycles(50) // max 50 total jumps per run
   .withCycles(5, "retry") // max 5 jumps to the "retry" anchor
   .anchor("retry")

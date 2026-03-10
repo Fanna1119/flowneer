@@ -8,7 +8,7 @@ Register and execute tools (function-calling) in your flows. `withTools` attache
 import { FlowBuilder } from "flowneer";
 import { withTools } from "flowneer/plugins/tools";
 
-FlowBuilder.use(withTools);
+const AppFlow = FlowBuilder.extend([withTools]);
 ```
 
 ## Defining Tools
@@ -46,7 +46,7 @@ const searchTool: Tool = {
 ## Registering Tools
 
 ```typescript
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .withTools([calculatorTool, searchTool])
   .startWith(async (s) => {
     const registry = s.__tools!;

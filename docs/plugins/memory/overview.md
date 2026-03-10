@@ -35,11 +35,11 @@ Use `withMemory` to attach any Memory instance to `shared.__memory` before the f
 import { FlowBuilder } from "flowneer";
 import { withMemory, BufferWindowMemory } from "flowneer/plugins/memory";
 
-FlowBuilder.use(withMemory);
+const AppFlow = FlowBuilder.extend([withMemory]);
 
 const memory = new BufferWindowMemory({ maxMessages: 20 });
 
-const flow = new FlowBuilder<ChatState>()
+const flow = new AppFlow<ChatState>()
   .withMemory(memory)
   .startWith(async (s) => {
     s.__memory!.add({ role: "user", content: s.userInput });

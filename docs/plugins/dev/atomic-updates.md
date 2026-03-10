@@ -8,13 +8,13 @@ A convenience wrapper around `.parallel()` with a required reducer. Enforces the
 import { FlowBuilder } from "flowneer";
 import { withAtomicUpdates } from "flowneer/plugins/dev";
 
-FlowBuilder.use(withAtomicUpdates);
+const AppFlow = FlowBuilder.extend([withAtomicUpdates]);
 ```
 
 ## Usage
 
 ```typescript
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .startWith(prepareData)
   .parallelAtomic(
     [

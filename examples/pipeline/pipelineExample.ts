@@ -80,7 +80,7 @@ const CHANGELOGS = [
   `v0.5.0 – FlowBuilder.batch() added. Parallel step processing with configurable concurrency.
    Breaking: anchor() no longer auto-resumes; call resumeFlow() explicitly.`,
 
-  `v0.6.0 – Plugins revamped. FlowBuilder.use() now accepts a plain function.
+  `v0.6.0 – Plugins revamped. FlowBuilder.extend([...plugins]) creates an isolated subclass.
    New: withMemory plugin ships out of the box. withTools now supports async tool definitions.`,
 
   `v0.7.0 – Presets folder introduced. createAgent, withReActLoop, patterns moved out of plugins.

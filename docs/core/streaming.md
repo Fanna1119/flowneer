@@ -77,9 +77,9 @@ The `withStream` plugin registers a **push-based subscriber** on `shared.__strea
 import { FlowBuilder } from "flowneer";
 import { withStream, emit } from "flowneer/plugins/messaging";
 
-FlowBuilder.use(withStream);
+const AppFlow = FlowBuilder.extend([withStream]);
 
-const flow = new FlowBuilder<MyState>()
+const flow = new AppFlow<MyState>()
   .withStream((chunk) => {
     process.stdout.write(String(chunk));
   })

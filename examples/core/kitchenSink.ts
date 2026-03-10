@@ -49,7 +49,10 @@ import {
 import type { CircuitBreakerOptions } from "../../plugins/resilience";
 
 // Persistence (NEW: withVersionedCheckpoint replaces flat withCheckpoint)
-import { withAuditLog, withVersionedCheckpoint } from "../../plugins/persistence";
+import {
+  withAuditLog,
+  withVersionedCheckpoint,
+} from "../../plugins/persistence";
 import type {
   AuditEntry,
   AuditLogStore,
@@ -117,49 +120,43 @@ import type { EvalResult } from "../../plugins/eval";
 
 import { callLlm, callLlmWithUsage } from "../../utils/callLlm";
 
-// ── Register all plugins (once per process) ───────────────────────────────────
+// ── Create FlowBuilder subclass with all plugins ─────────────────────────────
 
-// Observability
-FlowBuilder.use(withTiming);
-FlowBuilder.use(withHistory);
-FlowBuilder.use(withInterrupts);
-FlowBuilder.use(withCallbacks); // NEW — label-aware lifecycle callbacks
-
-// Resilience
-FlowBuilder.use(withCircuitBreaker);
-FlowBuilder.use(withTimeout);
-FlowBuilder.use(withCycles);
-FlowBuilder.use(withStepLimit);
-FlowBuilder.use(withAtomicUpdates);
-
-// Persistence
-FlowBuilder.use(withVersionedCheckpoint); // NEW — diff-based versioned checkpoints
-FlowBuilder.use(withAuditLog);
-
-// LLM
-FlowBuilder.use(withTokenBudget);
-FlowBuilder.use(withCostTracker);
-FlowBuilder.use(withRateLimit);
-FlowBuilder.use(withStructuredOutput); // NEW — Zod-compatible output validator
-
-// Messaging
-FlowBuilder.use(withChannels);
-FlowBuilder.use(withStream);
-
-// Agent + Tools + Memory
-FlowBuilder.use(withTools); // NEW — ToolRegistry attached to shared.__tools
-FlowBuilder.use(withReActLoop); // NEW — think → tool-call → observe loop
-FlowBuilder.use(withHumanNode); // NEW — ergonomic interrupt / resume
-FlowBuilder.use(withMemory); // NEW — Memory attached to shared.__memory
-
-// Telemetry
-FlowBuilder.use(withTelemetry); // NEW — OTEL-style spans
-
-// Graph
-FlowBuilder.use(withGraph); // NEW — DAG composition
-
-// Fallback (last → innermost wrapStep)
-FlowBuilder.use(withFallback);
+const AppFlow = FlowBuilder.extend([
+  // Observability
+  withTiming,
+  withHistory,
+  withInterrupts,
+  withCallbacks, // label-aware lifecycle callbacks
+  // Resilience
+  withCircuitBreaker,
+  withTimeout,
+  withCycles,
+  withStepLimit,
+  withAtomicUpdates,
+  // Persistence
+  withVersionedCheckpoint, // diff-based versioned checkpoints
+  withAuditLog,
+  // LLM
+  withTokenBudget,
+  withCostTracker,
+  withRateLimit,
+  withStructuredOutput, // Zod-compatible output validator
+  // Messaging
+  withChannels,
+  withStream,
+  // Agent + Tools + Memory
+  withTools, // ToolRegistry attached to shared.__tools
+  withReActLoop, // think → tool-call → observe loop
+  withHumanNode, // ergonomic interrupt / resume
+  withMemory, // Memory attached to shared.__memory
+  // Telemetry
+  withTelemetry, // OTEL-style spans
+  // Graph
+  withGraph, // DAG composition
+  // Fallback (last → innermost wrapStep)
+  withFallback,
+]);
 
 // ── Pricing ────────────────────────────────────────────────────────────────────
 
@@ -477,7 +474,7 @@ async function draftConclusion(s: BriefingState): Promise<void> {
 
 // Compile graph: intro → body → conclusion (linear for simplicity;
 // addEdge() supports conditional edges and back-edges for complex DAGs)
-const sectionGraph = new FlowBuilder<BriefingState>()
+const sectionGraph = new AppFlow<BriefingState>()
   .addNode("intro", draftIntro)
   .addNode("body", draftBody)
   .addNode("conclusion", draftConclusion)
@@ -656,7 +653,7 @@ const TOKEN_BUDGET = 60_000;
 
 // ── Main flow definition ──────────────────────────────────────────────────────
 
-const flow = new FlowBuilder<BriefingState>()
+const flow = new AppFlow<BriefingState>()
 
   // ── Resilience ────────────────────────────────────────────────────────────
   .withCircuitBreaker({

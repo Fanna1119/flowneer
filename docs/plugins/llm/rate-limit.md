@@ -8,13 +8,13 @@ Enforces a minimum interval between consecutive step executions. Useful when cal
 import { FlowBuilder } from "flowneer";
 import { withRateLimit } from "flowneer/plugins/llm";
 
-FlowBuilder.use(withRateLimit);
+const AppFlow = FlowBuilder.extend([withRateLimit]);
 ```
 
 ## Usage
 
 ```typescript
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .withRateLimit({ intervalMs: 1000 }) // at least 1 s between steps
   .startWith(callLlmStep)
   .then(callLlmStep)
@@ -37,7 +37,7 @@ const flow = new FlowBuilder<State>()
 ## Example: Batching with Rate Limit
 
 ```typescript
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .withRateLimit({ intervalMs: 500 }) // 2 requests/s max
   .batch(
     (s) => s.prompts,

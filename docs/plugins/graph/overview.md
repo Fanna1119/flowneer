@@ -8,13 +8,13 @@ Declare flows as directed acyclic graphs (DAGs) with `addNode` and `addEdge`, th
 import { FlowBuilder } from "flowneer";
 import { withGraph } from "flowneer/plugins/graph";
 
-FlowBuilder.use(withGraph);
+const AppFlow = FlowBuilder.extend([withGraph]);
 ```
 
 ## Usage
 
 ```typescript
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .addNode("fetch", fetchData)
   .addNode("validate", validateData)
   .addNode("transform", transformData)
@@ -87,7 +87,7 @@ interface ProcessState {
   retries: number;
 }
 
-const flow = new FlowBuilder<ProcessState>()
+const flow = new AppFlow<ProcessState>()
   .addNode("load", (s) => {
     s.data = loadData();
   })
