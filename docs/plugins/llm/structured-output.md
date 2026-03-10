@@ -10,7 +10,7 @@ Works with **Zod**, **ArkType**, **Valibot**, or any object with a `.parse(input
 import { FlowBuilder } from "flowneer";
 import { withStructuredOutput } from "flowneer/plugins/llm";
 
-FlowBuilder.use(withStructuredOutput);
+const AppFlow = FlowBuilder.extend([withStructuredOutput]);
 ```
 
 ## Usage
@@ -33,7 +33,7 @@ interface State {
   __validationError?: { message: string; raw: string; attempts: number };
 }
 
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .withStructuredOutput(AnalysisSchema, { retries: 2 })
   .startWith(async (s) => {
     const errorHint = s.__validationError

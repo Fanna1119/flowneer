@@ -22,14 +22,13 @@ Exports the raw nodes and edges declared via `addNode` / `addEdge` **before** `.
 import { FlowBuilder } from "flowneer";
 import { withGraph, withExportGraph } from "flowneer/plugins/graph";
 
-FlowBuilder.use(withGraph);
-FlowBuilder.use(withExportGraph);
+const AppFlow = FlowBuilder.extend([withGraph, withExportGraph]);
 ```
 
 ### Usage
 
 ```typescript
-const result = new FlowBuilder<State>()
+const result = new AppFlow<State>()
   .addNode("fetch", fetchData, { retries: 3 })
   .addNode("transform", transformData)
   .addNode("save", saveData)
@@ -103,15 +102,14 @@ Loading `withExportFlow` after `withExportGraph` is fine — it overrides `.expo
 import { FlowBuilder } from "flowneer";
 import { withExportFlow } from "flowneer/plugins/graph";
 // Optionally also load withGraph + withExportGraph for the combined output:
-// FlowBuilder.use(withGraph);
-// FlowBuilder.use(withExportGraph);
-FlowBuilder.use(withExportFlow); // load last
+// const AppFlow = FlowBuilder.extend([withGraph, withExportGraph, withExportFlow]);
+const AppFlow = FlowBuilder.extend([withExportFlow]); // load last
 ```
 
 ### Usage — sequential flow
 
 ```typescript
-const result = new FlowBuilder<State>()
+const result = new AppFlow<State>()
   .startWith(loadData)
   .then(validate)
   .then(save)
@@ -138,7 +136,7 @@ const result = new FlowBuilder<State>()
 ### Usage — flow with complex steps
 
 ```typescript
-const result = new FlowBuilder<State>()
+const result = new AppFlow<State>()
   .startWith(init)
   .loop(
     (s) => !s.done,
@@ -155,7 +153,7 @@ Loop and parallel bodies get nested `id` paths (e.g. `"loop_1:body:fn_0"`) so th
 When `withGraph`, `withExportGraph`, and `withExportFlow` are all loaded:
 
 ```typescript
-const result = new FlowBuilder<State>()
+const result = new AppFlow<State>()
   .addNode("a", stepA)
   .addNode("b", stepB)
   .addEdge("a", "b")

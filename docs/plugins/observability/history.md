@@ -8,7 +8,7 @@ Records a shallow snapshot of `shared` after each step into `shared.__history`. 
 import { FlowBuilder } from "flowneer";
 import { withHistory } from "flowneer/plugins/observability";
 
-FlowBuilder.use(withHistory);
+const AppFlow = FlowBuilder.extend([withHistory]);
 ```
 
 ## Usage
@@ -19,7 +19,7 @@ interface State {
   __history?: Array<{ index: number; type: string; snapshot: any }>;
 }
 
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .withHistory()
   .startWith((s) => {
     s.count = 1;

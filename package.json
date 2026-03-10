@@ -1,6 +1,6 @@
 {
   "name": "flowneer",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Zero-dependency fluent flow builder for AI agents",
   "license": "MIT",
   "type": "module",
@@ -21,7 +21,12 @@
     "./plugins/output": "./dist/plugins/output/index.js",
     "./plugins/telemetry": "./dist/plugins/telemetry/index.js",
     "./plugins/eval": "./dist/plugins/eval/index.js",
-    "./plugins/graph": "./dist/plugins/graph/index.js"
+    "./plugins/graph": "./dist/plugins/graph/index.js",
+    "./presets": "./dist/presets/index.js",
+    "./presets/agent": "./dist/presets/agent/index.js",
+    "./presets/config": "./dist/presets/config/index.js",
+    "./presets/rag": "./dist/presets/rag/index.js",
+    "./presets/pipeline": "./dist/presets/pipeline/index.js"
   },
   "sideEffects": false,
   "files": [
@@ -36,6 +41,7 @@
     "builder"
   ],
   "scripts": {
+    "bench": "bun run examples/bench.ts",
     "build": "tsup",
     "prepublishOnly": "bun test && bun run build",
     "docs:dev": "vitepress dev docs",
@@ -48,6 +54,7 @@
   "devDependencies": {
     "@types/bun": "latest",
     "dotenv": "17.3.1",
+    "mitata": "^1.0.34",
     "openai": "6.22.0",
     "tsup": "^8.5.1",
     "vitepress": "^2.0.0-alpha.16",

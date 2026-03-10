@@ -8,13 +8,13 @@ Throws if the total number of step executions in a single `.run()` call exceeds 
 import { FlowBuilder } from "flowneer";
 import { withStepLimit } from "flowneer/plugins/dev";
 
-FlowBuilder.use(withStepLimit);
+const AppFlow = FlowBuilder.extend([withStepLimit]);
 ```
 
 ## Usage
 
 ```typescript
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .withStepLimit(500) // abort if more than 500 steps execute
   .anchor("loop")
   .then(async (s) => {

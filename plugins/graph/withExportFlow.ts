@@ -7,8 +7,8 @@
 // `.addNode()` / `.addEdge()` were called before `.compile()`), a `graph`
 // section is appended automatically.
 //
-//   FlowBuilder.use(withGraph);
-//   FlowBuilder.use(withExportFlow);     // loads last — wins at runtime
+//   const AppFlow = FlowBuilder.extend([withGraph, withExportFlow]);
+//   //  loads withExportFlow last — wins at runtime
 //
 //   // Plain sequential flow:
 //   new FlowBuilder().then(a).then(b).exportGraph();

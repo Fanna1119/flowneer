@@ -9,8 +9,7 @@ import { FlowBuilder } from "flowneer";
 import { withReActLoop } from "flowneer/plugins/agent";
 import { withTools } from "flowneer/plugins/tools";
 
-FlowBuilder.use(withTools);
-FlowBuilder.use(withReActLoop);
+const AppFlow = FlowBuilder.extend([withTools, withReActLoop]);
 ```
 
 ## Usage
@@ -38,7 +37,7 @@ const calculatorTool = {
   execute: ({ expression }: { expression: string }) => eval(expression),
 };
 
-const flow = new FlowBuilder<AgentState>()
+const flow = new AppFlow<AgentState>()
   .withTools([calculatorTool])
   .withReActLoop({
     think: async (s) => {

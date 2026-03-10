@@ -11,7 +11,7 @@ Two complementary tools for understanding what a flow does:
 import { FlowBuilder } from "flowneer";
 import { withFlowAnalyzer } from "flowneer/plugins/dev";
 
-FlowBuilder.use(withFlowAnalyzer);
+const AppFlow = FlowBuilder.extend([withFlowAnalyzer]);
 ```
 
 ---
@@ -22,7 +22,7 @@ Walks the compiled `steps[]` array and returns a `PathMap` describing all known
 nodes, anchors, and structural paths. Nothing is executed.
 
 ```typescript
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .anchor("refine", 5)
   .then(generateDraft, { label: "gen:draft" })
   .then(async (s) => (s.score < 0.9 ? "#refine" : undefined), {
@@ -69,7 +69,7 @@ interface PathNode {
 ### Branch analysis
 
 ```typescript
-const flow = new FlowBuilder<State>().branch(
+const flow = new AppFlow<State>().branch(
   async (s) => (s.ok ? "pass" : "fail"),
   {
     pass: async (s) => {
@@ -95,7 +95,7 @@ Installs `beforeStep`/`afterStep` hooks that record every visited step with its
 type, label, and wall-clock duration.
 
 ```typescript
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .then(fetchUser, { label: "fetch:user" })
   .then(enrichProfile, { label: "enrich:profile" })
   .then(saveResult, { label: "save" });
@@ -147,7 +147,7 @@ interface TraceEvent {
 Trace the execution path without running any real logic:
 
 ```typescript
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .withDryRun()
   .then(callExpensiveApi, { label: "api:call" })
   .then(processResult, { label: "process" });

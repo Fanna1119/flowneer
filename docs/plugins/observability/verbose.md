@@ -8,13 +8,13 @@ Prints the full `shared` state to `stdout` after every step. The simplest way to
 import { FlowBuilder } from "flowneer";
 import { withVerbose } from "flowneer/plugins/observability";
 
-FlowBuilder.use(withVerbose);
+const AppFlow = FlowBuilder.extend([withVerbose]);
 ```
 
 ## Usage
 
 ```typescript
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .withVerbose()
   .startWith(async (s) => {
     s.step1 = "done";

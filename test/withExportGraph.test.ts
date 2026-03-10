@@ -12,8 +12,7 @@ import { withGraph } from "../plugins/graph";
 import { withExportFlow } from "../plugins/graph/withExportFlow";
 import type { FlowExport } from "../plugins/graph/withExportFlow";
 
-FlowBuilder.use(withGraph);
-FlowBuilder.use(withExportFlow);
+const EG = FlowBuilder.extend([withGraph, withExportFlow]);
 
 const noop = () => {};
 
@@ -23,17 +22,17 @@ const noop = () => {};
 
 describe("withExportGraph — JSON structure", () => {
   test("returns format: 'json'", () => {
-    const result = new FlowBuilder<any>().addNode("a", noop).exportGraph();
+    const result = new EG<any>().addNode("a", noop).exportGraph();
     expect(result.format).toBe("json");
   });
 
   test("graph section is populated for graph-only builders", () => {
-    const result = new FlowBuilder<any>().addNode("a", noop).exportGraph();
+    const result = new EG<any>().addNode("a", noop).exportGraph();
     expect(result.graph).toBeDefined();
   });
 
   test("nodes list reflects all registered nodes in insertion order", () => {
-    const result: FlowExport = new FlowBuilder<any>()
+    const result: FlowExport = new EG<any>()
       .addNode("fetch", noop)
       .addNode("transform", noop)
       .addNode("save", noop)
@@ -47,7 +46,7 @@ describe("withExportGraph — JSON structure", () => {
   });
 
   test("edges list reflects all registered edges", () => {
-    const result: FlowExport = new FlowBuilder<any>()
+    const result: FlowExport = new EG<any>()
       .addNode("a", noop)
       .addNode("b", noop)
       .addNode("c", noop)
@@ -62,7 +61,7 @@ describe("withExportGraph — JSON structure", () => {
   });
 
   test("conditional edges are flagged correctly", () => {
-    const result: FlowExport = new FlowBuilder<any>()
+    const result: FlowExport = new EG<any>()
       .addNode("a", noop)
       .addNode("b", noop)
       .addEdge("a", "b")
@@ -80,7 +79,7 @@ describe("withExportGraph — JSON structure", () => {
 
 describe("withExportGraph — node options", () => {
   test("node without options has no options key", () => {
-    const result: FlowExport = new FlowBuilder<any>()
+    const result: FlowExport = new EG<any>()
       .addNode("a", noop)
       .exportGraph();
 
@@ -89,7 +88,7 @@ describe("withExportGraph — node options", () => {
   });
 
   test("numeric options are serialised", () => {
-    const result: FlowExport = new FlowBuilder<any>()
+    const result: FlowExport = new EG<any>()
       .addNode("a", noop, { retries: 3, timeoutMs: 5000 })
       .exportGraph();
 
@@ -100,7 +99,7 @@ describe("withExportGraph — node options", () => {
   });
 
   test("zero-value numeric options are omitted (they equal the default)", () => {
-    const result: FlowExport = new FlowBuilder<any>()
+    const result: FlowExport = new EG<any>()
       .addNode("a", noop, { retries: 0, delaySec: 0 })
       .exportGraph();
 
@@ -109,7 +108,7 @@ describe("withExportGraph — node options", () => {
   });
 
   test("function options are serialised as '<dynamic>'", () => {
-    const result: FlowExport = new FlowBuilder<any>()
+    const result: FlowExport = new EG<any>()
       .addNode("a", noop, {
         retries: (s: any) => s.retries ?? 1,
         timeoutMs: 1000,
@@ -129,7 +128,7 @@ describe("withExportGraph — non-destructive", () => {
   test("compile() can be called after exportGraph()", async () => {
     const s: { visited: string[] } = { visited: [] };
 
-    const flow = new FlowBuilder<typeof s>()
+    const flow = new EG<typeof s>()
       .addNode("a", (x) => {
         x.visited.push("a");
       })
@@ -147,7 +146,7 @@ describe("withExportGraph — non-destructive", () => {
   });
 
   test("exportGraph() is idempotent — calling it twice returns equal results", () => {
-    const flow = new FlowBuilder()
+    const flow = new EG()
       .addNode("x", noop)
       .addNode("y", noop)
       .addEdge("x", "y");
@@ -166,20 +165,20 @@ describe("withExportGraph — non-destructive", () => {
 describe("withExportGraph — errors", () => {
   test("empty builder produces no graph section (no throw)", () => {
     // withExportFlow handles empty builders gracefully
-    const result = new FlowBuilder().exportGraph();
+    const result = new EG().exportGraph();
     expect(result.graph).toBeUndefined();
     expect(result.flow.nodes).toHaveLength(0);
   });
 
   test('throws for "mermaid" format (not yet implemented)', () => {
     expect(() =>
-      (new FlowBuilder<any>().addNode("a", noop) as any).exportGraph("mermaid"),
+      (new EG<any>().addNode("a", noop) as any).exportGraph("mermaid"),
     ).toThrow("not yet implemented");
   });
 
   test("throws for an unknown format", () => {
     expect(() =>
-      (new FlowBuilder<any>().addNode("a", noop) as any).exportGraph(
+      (new EG<any>().addNode("a", noop) as any).exportGraph(
         "graphviz",
       ),
     ).toThrow('unknown format "graphviz"');
@@ -192,7 +191,7 @@ describe("withExportGraph — errors", () => {
 
 describe("withExportGraph — JSON round-trip", () => {
   test("output is fully JSON-serialisable", () => {
-    const result: FlowExport = new FlowBuilder<any>()
+    const result: FlowExport = new EG<any>()
       .addNode("start", noop)
       .addNode("end", noop, { retries: 2 })
       .addEdge("start", "end")

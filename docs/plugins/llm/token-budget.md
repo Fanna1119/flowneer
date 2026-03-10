@@ -8,7 +8,7 @@ Aborts the flow before any step runs if the cumulative token usage has reached o
 import { FlowBuilder } from "flowneer";
 import { withTokenBudget } from "flowneer/plugins/llm";
 
-FlowBuilder.use(withTokenBudget);
+const AppFlow = FlowBuilder.extend([withTokenBudget]);
 ```
 
 ## Usage
@@ -20,7 +20,7 @@ interface State {
   tokensUsed: number;
 }
 
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .withTokenBudget(100_000) // abort if tokensUsed >= 100 000
   .startWith(async (s) => {
     const { text, usage } = await callLlmWithUsage(s.prompt);
@@ -50,7 +50,7 @@ await flow.run({ prompt: "...", response: "", tokensUsed: 0 });
 ## Combining with withCostTracker
 
 ```typescript
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .withTokenBudget(50_000) // hard cap
   .withCostTracker() // accumulate dollar cost in __cost
   .startWith(async (s) => {

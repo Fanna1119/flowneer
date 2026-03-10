@@ -231,16 +231,28 @@ See [Streaming](./streaming.md) for details.
 
 ---
 
-## `FlowBuilder.use(plugin)` — static
+## `FlowBuilder.extend(plugins)` — static
 
-Register a plugin globally on `FlowBuilder.prototype`.
+Create a subclass of `FlowBuilder` with the given plugins mixed in.
 
 ```typescript
 import { withTiming } from "flowneer/plugins/observability";
-FlowBuilder.use(withTiming);
+import { withRateLimit } from "flowneer/plugins/llm";
+
+const AppFlow = FlowBuilder.extend([withTiming, withRateLimit]);
+
+const flow = new AppFlow<State>()
+  .withTiming()
+  .withRateLimit({ intervalMs: 500 })
+  .startWith(step);
 ```
 
-Call this once at app startup before creating flows.
+Chain `extend()` calls to layer plugins on top of a base subclass:
+
+```typescript
+const BaseFlow = FlowBuilder.extend([withTiming]);
+const TracedFlow = BaseFlow.extend([withTrace]); // has both plugins
+```
 
 ---
 

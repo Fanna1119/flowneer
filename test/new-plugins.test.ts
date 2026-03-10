@@ -16,14 +16,14 @@ import {
   executeTools,
 } from "../plugins/tools";
 import type { Tool, ToolCall } from "../plugins/tools";
-import { withReActLoop } from "../plugins/agent/withReActLoop";
+import { withReActLoop } from "../presets/agent/withReActLoop";
 import { withHumanNode, resumeFlow } from "../plugins/agent/withHumanNode";
 import {
   supervisorCrew,
   sequentialCrew,
   hierarchicalCrew,
   roundRobinDebate,
-} from "../plugins/agent/patterns";
+} from "../presets/agent";
 import {
   BufferWindowMemory,
   SummaryMemory,
@@ -35,13 +35,15 @@ import { withTelemetry } from "../plugins/telemetry";
 import { TelemetryDaemon } from "../plugins/telemetry/telemetry";
 import { emit } from "../plugins/messaging";
 
-FlowBuilder.use(withStructuredOutput);
-FlowBuilder.use(withTools);
-FlowBuilder.use(withReActLoop);
-FlowBuilder.use(withHumanNode);
-FlowBuilder.use(withCallbacks);
-FlowBuilder.use(withTelemetry);
-FlowBuilder.use(withMemory);
+const NP = FlowBuilder.extend([
+  withStructuredOutput,
+  withTools,
+  withReActLoop,
+  withHumanNode,
+  withCallbacks,
+  withTelemetry,
+  withMemory,
+]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // .stream()
@@ -251,7 +253,7 @@ describe("withStructuredOutput", () => {
 
   test("parses and stores valid JSON output", async () => {
     const s: any = {};
-    await (new FlowBuilder<any>() as any)
+    await (new NP<any>() as any)
       .withStructuredOutput(numberValidator)
       .startWith((s: any) => {
         s.__llmOutput = '{"n":7}';
@@ -263,7 +265,7 @@ describe("withStructuredOutput", () => {
 
   test("uses custom outputKey and resultKey", async () => {
     const s: any = {};
-    await (new FlowBuilder<any>() as any)
+    await (new NP<any>() as any)
       .withStructuredOutput(numberValidator, {
         outputKey: "raw",
         resultKey: "parsed",
@@ -278,7 +280,7 @@ describe("withStructuredOutput", () => {
 
   test("skips when outputKey is absent", async () => {
     const s: any = {};
-    await (new FlowBuilder<any>() as any)
+    await (new NP<any>() as any)
       .withStructuredOutput(numberValidator)
       .startWith(async () => {
         /* no __llmOutput */
@@ -290,7 +292,7 @@ describe("withStructuredOutput", () => {
 
   test("stores __validationError when validation fails", async () => {
     const s: any = {};
-    await (new FlowBuilder<any>() as any)
+    await (new NP<any>() as any)
       .withStructuredOutput(numberValidator)
       .startWith((s: any) => {
         s.__llmOutput = '{"wrong":true}';
@@ -303,7 +305,7 @@ describe("withStructuredOutput", () => {
 
   test("clears __validationError on subsequent success", async () => {
     const s: any = { __validationError: { message: "stale error" } };
-    await (new FlowBuilder<any>() as any)
+    await (new NP<any>() as any)
       .withStructuredOutput(numberValidator)
       .startWith((s: any) => {
         s.__llmOutput = '{"n":1}';
@@ -322,7 +324,7 @@ describe("withStructuredOutput", () => {
       },
     };
     const s: any = {};
-    await (new FlowBuilder<any>() as any)
+    await (new NP<any>() as any)
       .withStructuredOutput(csvValidator, {
         parse: (raw: string) => raw.split(",").map((v) => v.trim()),
       })
@@ -427,7 +429,7 @@ describe("ToolRegistry", () => {
 describe("withTools", () => {
   test("attaches ToolRegistry to shared.__tools before first step", async () => {
     const s: any = {};
-    await (new FlowBuilder<any>() as any)
+    await (new NP<any>() as any)
       .withTools([addTool])
       .startWith((s: any) => {
         expect(s.__tools).toBeInstanceOf(ToolRegistry);
@@ -438,7 +440,7 @@ describe("withTools", () => {
   test("getTools helper returns the registry", async () => {
     const s: any = {};
     let found: ToolRegistry | undefined;
-    await (new FlowBuilder<any>() as any)
+    await (new NP<any>() as any)
       .withTools([addTool])
       .startWith((s: any) => {
         found = getTools(s);
@@ -450,7 +452,7 @@ describe("withTools", () => {
   test("executeTool helper runs a tool from shared", async () => {
     const s: any = {};
     let res: any;
-    await (new FlowBuilder<any>() as any)
+    await (new NP<any>() as any)
       .withTools([addTool])
       .startWith(async (s: any) => {
         res = await executeTool(s, { name: "add", args: { a: 5, b: 5 } });
@@ -462,7 +464,7 @@ describe("withTools", () => {
   test("executeTools helper runs multiple tools", async () => {
     const s: any = {};
     let results: any[];
-    await (new FlowBuilder<any>() as any)
+    await (new NP<any>() as any)
       .withTools([addTool])
       .startWith(async (s: any) => {
         results = await executeTools(s, [
@@ -489,7 +491,7 @@ describe("withTools", () => {
 describe("withReActLoop", () => {
   test("finishes immediately on first think -> finish", async () => {
     const s: any = {};
-    await (new FlowBuilder<any>() as any)
+    await (new NP<any>() as any)
       .withTools([addTool])
       .withReActLoop({
         think: () => ({ action: "finish", output: "done" }),
@@ -503,7 +505,7 @@ describe("withReActLoop", () => {
   test("executes tool calls and stores results", async () => {
     const s: any = {};
     let iterCount = 0;
-    await (new FlowBuilder<any>() as any)
+    await (new NP<any>() as any)
       .withTools([addTool])
       .withReActLoop({
         think: (s: any) => {
@@ -525,7 +527,7 @@ describe("withReActLoop", () => {
 
   test("sets __reactExhausted when maxIterations reached", async () => {
     const s: any = {};
-    await (new FlowBuilder<any>() as any)
+    await (new NP<any>() as any)
       .withTools([addTool])
       .withReActLoop({
         think: () => ({
@@ -544,7 +546,7 @@ describe("withReActLoop", () => {
     const observations: any[][] = [];
     let done = false;
 
-    await (new FlowBuilder<any>() as any)
+    await (new NP<any>() as any)
       .withTools([addTool])
       .withReActLoop({
         think: (s: any) => {
@@ -575,7 +577,7 @@ describe("withHumanNode", () => {
     const s = { value: 1 };
     let caught: InterruptError | undefined;
     try {
-      await (new FlowBuilder<typeof s>() as any)
+      await (new NP<typeof s>() as any)
         .startWith(async () => {})
         .humanNode()
         .run(s);
@@ -590,7 +592,7 @@ describe("withHumanNode", () => {
     const s: any = {};
     let caught: InterruptError | undefined;
     try {
-      await (new FlowBuilder<any>() as any)
+      await (new NP<any>() as any)
         .startWith(async () => {})
         .humanNode({ prompt: "Please review this." })
         .run(s);
@@ -606,7 +608,7 @@ describe("withHumanNode", () => {
   test("skips interrupt when condition returns false", async () => {
     const s = { interrupt: false };
     // Should not throw
-    await (new FlowBuilder<typeof s>() as any)
+    await (new NP<typeof s>() as any)
       .startWith(async () => {})
       .humanNode({ condition: (s: any) => s.interrupt })
       .run(s);
@@ -615,7 +617,7 @@ describe("withHumanNode", () => {
   test("interrupts when condition returns true", async () => {
     const s = { interrupt: true };
     await expect(
-      (new FlowBuilder<typeof s>() as any)
+      (new NP<typeof s>() as any)
         .startWith(async () => {})
         .humanNode({ condition: (s: any) => s.interrupt })
         .run(s),
@@ -626,7 +628,7 @@ describe("withHumanNode", () => {
     const s: any = { step: 0 };
     let capturedState: any;
 
-    const flow = (new FlowBuilder<any>() as any).startWith((shared: any) => {
+    const flow = (new NP<any>() as any).startWith((shared: any) => {
       capturedState = { ...shared };
       shared.step = 1;
     });
@@ -911,7 +913,7 @@ describe("withMemory", () => {
   test("attaches memory instance to shared.__memory", async () => {
     const s: any = {};
     const memory = new BufferWindowMemory();
-    await (new FlowBuilder<any>() as any)
+    await (new NP<any>() as any)
       .withMemory(memory)
       .startWith((s: any) => {
         expect(s.__memory).toBe(memory);
@@ -922,7 +924,7 @@ describe("withMemory", () => {
   test("memory is accessible throughout flow steps", async () => {
     const s: any = {};
     const memory = new BufferWindowMemory();
-    await (new FlowBuilder<any>() as any)
+    await (new NP<any>() as any)
       .withMemory(memory)
       .startWith((s: any) => {
         s.__memory.add({ role: "user", content: "step1" });
@@ -945,7 +947,7 @@ describe("withCallbacks", () => {
   test("onChainStart / onChainEnd fire for unlabeled steps", async () => {
     const events: string[] = [];
     const s: any = {};
-    await (new FlowBuilder<any>() as any)
+    await (new NP<any>() as any)
       .withCallbacks({
         onChainStart: () => events.push("chainStart"),
         onChainEnd: () => events.push("chainEnd"),
@@ -971,9 +973,9 @@ describe("withCallbacks", () => {
         return this;
       },
     };
-    FlowBuilder.use(labelPlugin);
+    const LLMLabelFlow = (NP as any).extend([labelPlugin]);
 
-    await (new FlowBuilder<any>() as any)
+    await (new LLMLabelFlow() as any)
       .withLabel("llm:chat")
       .withCallbacks({
         onLLMStart: () => events.push("llmStart"),
@@ -990,7 +992,7 @@ describe("withCallbacks", () => {
   test("onError fires when a step throws", async () => {
     const errors: unknown[] = [];
 
-    await (new FlowBuilder<any>() as any)
+    await (new NP<any>() as any)
       .withCallbacks({ onError: (_: any, err: unknown) => errors.push(err) })
       .startWith(() => {
         throw new Error("oops");
@@ -1016,7 +1018,7 @@ describe("withTelemetry", () => {
     };
     const daemon = new TelemetryDaemon({ exporter, flushIntervalMs: 60_000 });
 
-    await (new FlowBuilder<any>() as any)
+    await (new NP<any>() as any)
       .withTelemetry({ daemon })
       .startWith(async () => {})
       .then(async () => {})
@@ -1038,7 +1040,7 @@ describe("withTelemetry", () => {
     };
     const daemon = new TelemetryDaemon({ exporter, flushIntervalMs: 60_000 });
 
-    await (new FlowBuilder<any>() as any)
+    await (new NP<any>() as any)
       .withTelemetry({ daemon })
       .startWith(() => {
         throw new Error("fail");
@@ -1062,10 +1064,10 @@ describe("withTelemetry", () => {
     });
 
     // Two flows share same daemon
-    const flow1 = (new FlowBuilder<any>() as any)
+    const flow1 = (new NP<any>() as any)
       .withTelemetry({ daemon: sharedDaemon })
       .startWith(async () => {});
-    const flow2 = (new FlowBuilder<any>() as any)
+    const flow2 = (new NP<any>() as any)
       .withTelemetry({ daemon: sharedDaemon })
       .startWith(async () => {});
 

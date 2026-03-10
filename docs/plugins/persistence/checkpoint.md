@@ -8,7 +8,7 @@ Saves `shared` to a store after each successful step. Combine with `withReplay` 
 import { FlowBuilder } from "flowneer";
 import { withCheckpoint } from "flowneer/plugins/persistence";
 
-FlowBuilder.use(withCheckpoint);
+const AppFlow = FlowBuilder.extend([withCheckpoint, withReplay]);
 ```
 
 ## The `CheckpointStore` Interface
@@ -30,7 +30,7 @@ const store: CheckpointStore = {
   save: (index, shared) => checkpoints.set(index, structuredClone(shared)),
 };
 
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .withCheckpoint(store)
   .startWith(stepA)
   .then(stepB) // crashes here
@@ -43,7 +43,6 @@ try {
   const lastStep = Math.max(...checkpoints.keys());
   const savedState = checkpoints.get(lastStep);
 
-  FlowBuilder.use(withReplay);
   flow.withReplay(lastStep + 1);
   await flow.run(savedState);
 }

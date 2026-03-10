@@ -51,7 +51,7 @@ This keeps the conversation context manageable for long sessions.
 import { FlowBuilder } from "flowneer";
 import { withMemory, SummaryMemory } from "flowneer/plugins/memory";
 
-FlowBuilder.use(withMemory);
+const AppFlow = FlowBuilder.extend([withMemory]);
 
 const memory = new SummaryMemory({
   maxMessages: 8,
@@ -61,7 +61,7 @@ const memory = new SummaryMemory({
     ),
 });
 
-const flow = new FlowBuilder<ChatState>()
+const flow = new AppFlow<ChatState>()
   .withMemory(memory)
   .startWith(async (s) => {
     await s.__memory!.add({ role: "user", content: s.userInput });

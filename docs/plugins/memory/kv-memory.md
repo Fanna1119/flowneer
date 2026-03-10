@@ -65,10 +65,10 @@ fs.writeFileSync("memory.json", kv.toJSON());
 import { FlowBuilder } from "flowneer";
 import { withMemory, KVMemory } from "flowneer/plugins/memory";
 
-FlowBuilder.use(withMemory);
+const AppFlow = FlowBuilder.extend([withMemory]);
 
 const kv = new KVMemory();
-const flow = new FlowBuilder<State>().withMemory(kv).startWith(async (s) => {
+const flow = new AppFlow<State>().withMemory(kv).startWith(async (s) => {
   (s.__memory as KVMemory).set("last.intent", s.intent);
   const ctx = await s.__memory!.toContext();
   s.response = await callLlm(buildPrompt(ctx, s.userInput));

@@ -430,14 +430,16 @@ describe("FlowError", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("plugin system", () => {
-  test("FlowBuilder.use adds a method to the prototype", () => {
+  test("FlowBuilder.extend adds a method to the subclass prototype only", () => {
     const plugin: FlowneerPlugin = {
       noop(this: FlowBuilder) {
         return this;
       },
     };
-    FlowBuilder.use(plugin);
-    expect(typeof (FlowBuilder.prototype as any).noop).toBe("function");
+    const Extended = FlowBuilder.extend([plugin]);
+    expect(typeof (Extended.prototype as any).noop).toBe("function");
+    // Base prototype must NOT be polluted
+    expect(typeof (FlowBuilder.prototype as any).noop).toBe("undefined");
   });
 
   test("plugin method is chainable and returns the builder", () => {
@@ -446,8 +448,8 @@ describe("plugin system", () => {
         return this;
       },
     };
-    FlowBuilder.use(plugin);
-    const flow = new FlowBuilder();
+    const Tagged = FlowBuilder.extend([plugin]);
+    const flow = new Tagged();
     const result = (flow as any).tag();
     expect(result).toBe(flow);
   });
@@ -464,9 +466,9 @@ describe("plugin system", () => {
         return this;
       },
     };
-    FlowBuilder.use(plugin);
+    const B = FlowBuilder.extend([plugin]);
 
-    await (new FlowBuilder() as any)
+    await (new B() as any)
       .withBefore()
       .startWith(async () => {})
       .then(async () => {})
@@ -487,9 +489,9 @@ describe("plugin system", () => {
         return this;
       },
     };
-    FlowBuilder.use(plugin);
+    const A = FlowBuilder.extend([plugin]);
 
-    await (new FlowBuilder() as any)
+    await (new A() as any)
       .withAfter()
       .startWith(async () => {})
       .then(async () => {})
@@ -510,10 +512,10 @@ describe("plugin system", () => {
         return this;
       },
     };
-    FlowBuilder.use(plugin);
+    const E = FlowBuilder.extend([plugin]);
 
     try {
-      await (new FlowBuilder() as any)
+      await (new E() as any)
         .withErrorHook()
         .startWith(async () => {
           throw new Error("hook-error");
@@ -536,9 +538,9 @@ describe("plugin system", () => {
         return this;
       },
     };
-    FlowBuilder.use(plugin);
+    const M = FlowBuilder.extend([plugin]);
 
-    await (new FlowBuilder<{ role: string; msg: string }>() as any)
+    await (new M<{ role: string; msg: string }>() as any)
       .withMeta()
       .startWith(async () => {})
       .branch((s: any) => s.role, { default: async () => {} })
@@ -546,6 +548,27 @@ describe("plugin system", () => {
 
     expect(metas[0]).toEqual({ index: 0, type: "fn" });
     expect(metas[1]).toEqual({ index: 1, type: "branch" });
+  });
+
+  test("two extend() calls are isolated — no cross-contamination", () => {
+    const pA: FlowneerPlugin = {
+      onlyA(this: FlowBuilder) {
+        return this;
+      },
+    };
+    const pB: FlowneerPlugin = {
+      onlyB(this: FlowBuilder) {
+        return this;
+      },
+    };
+    const FlowA = FlowBuilder.extend([pA]);
+    const FlowB = FlowBuilder.extend([pB]);
+    expect(typeof (FlowA.prototype as any).onlyA).toBe("function");
+    expect(typeof (FlowA.prototype as any).onlyB).toBe("undefined");
+    expect(typeof (FlowB.prototype as any).onlyB).toBe("function");
+    expect(typeof (FlowB.prototype as any).onlyA).toBe("undefined");
+    expect(typeof (FlowBuilder.prototype as any).onlyA).toBe("undefined");
+    expect(typeof (FlowBuilder.prototype as any).onlyB).toBe("undefined");
   });
 });
 
@@ -631,10 +654,9 @@ describe("multiple plugins", () => {
         return this;
       },
     };
-    FlowBuilder.use(pluginA);
-    FlowBuilder.use(pluginB);
+    const AB = FlowBuilder.extend([pluginA, pluginB]);
 
-    await (new FlowBuilder() as any)
+    await (new AB() as any)
       .withHookA()
       .withHookB()
       .startWith(async () => {})
@@ -738,9 +760,9 @@ describe("afterFlow hook", () => {
         return this;
       },
     };
-    FlowBuilder.use(plugin);
+    const AF = FlowBuilder.extend([plugin]);
 
-    await (new FlowBuilder() as any)
+    await (new AF() as any)
       .withAfterFlow()
       .startWith(async () => {
         events.push("step");
@@ -762,10 +784,10 @@ describe("afterFlow hook", () => {
         return this;
       },
     };
-    FlowBuilder.use(plugin);
+    const AFErr = FlowBuilder.extend([plugin]);
 
     try {
-      await (new FlowBuilder() as any)
+      await (new AFErr() as any)
         .withAfterFlowErr()
         .startWith(async () => {
           throw new Error("boom");
@@ -913,10 +935,10 @@ describe("wrapParallelFn hook", () => {
         return this;
       },
     };
-    FlowBuilder.use(plugin);
+    const PW = FlowBuilder.extend([plugin]);
 
     const shared = { values: [] as number[] };
-    await (new FlowBuilder() as any)
+    await (new PW() as any)
       .withPFnWrap()
       .parallel([
         async (s: any) => s.values.push(1),

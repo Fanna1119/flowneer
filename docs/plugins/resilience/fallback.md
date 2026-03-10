@@ -8,13 +8,13 @@ Catches any step error and calls a fallback function instead of propagating the 
 import { FlowBuilder } from "flowneer";
 import { withFallback } from "flowneer/plugins/resilience";
 
-FlowBuilder.use(withFallback);
+const AppFlow = FlowBuilder.extend([withFallback]);
 ```
 
 ## Usage
 
 ```typescript
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .withFallback(async (s) => {
     const err = s.__fallbackError!;
     console.error(`Step ${err.stepIndex} failed: ${err.message}`);

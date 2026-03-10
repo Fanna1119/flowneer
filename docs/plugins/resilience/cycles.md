@@ -8,7 +8,7 @@ Guards against infinite anchor-jump loops. Throws when the number of goto jumps 
 import { FlowBuilder } from "flowneer";
 import { withCycles } from "flowneer/plugins/resilience";
 
-FlowBuilder.use(withCycles);
+const AppFlow = FlowBuilder.extend([withCycles]);
 ```
 
 ## Usage
@@ -16,7 +16,7 @@ FlowBuilder.use(withCycles);
 ### Global jump limit
 
 ```typescript
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .withCycles(100) // abort after 100 total anchor jumps
   .anchor("retry")
   .then(async (s) => {

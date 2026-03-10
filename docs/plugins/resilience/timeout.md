@@ -8,13 +8,13 @@ Applies a per-step wall-clock timeout to **every** step in the flow. If any step
 import { FlowBuilder } from "flowneer";
 import { withTimeout } from "flowneer/plugins/resilience";
 
-FlowBuilder.use(withTimeout);
+const AppFlow = FlowBuilder.extend([withTimeout]);
 ```
 
 ## Usage
 
 ```typescript
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .withTimeout(5000) // 5 s per step max
   .startWith(callLlm)
   .then(processResult);

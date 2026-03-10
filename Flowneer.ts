@@ -32,7 +32,6 @@ export type {
   ParallelStep,
   AnchorStep,
   Step,
-  InstancePlugin,
   StepContext,
   StepHandler,
 } from "./src";

@@ -19,53 +19,76 @@ import {
 } from "../plugins/telemetry/telemetry";
 import { executeTools, withTools } from "../plugins/tools/withTools";
 import { resumeFlow, withHumanNode } from "../plugins/agent/withHumanNode";
-import { withReActLoop } from "../plugins/agent/withReActLoop";
+import { withReActLoop } from "../presets/agent/withReActLoop";
 
 // Register all needed plugins for this file
-FlowBuilder.use(withVerbose);
-FlowBuilder.use(withStream);
-FlowBuilder.use(withCallbacks);
-FlowBuilder.use(withGraph);
-FlowBuilder.use(withHumanNode);
-FlowBuilder.use(withReActLoop);
-FlowBuilder.use(withTools);
+// Helper plugin for label-overriding in withCallbacks tests
+const labelPlugin = {
+  withLabel(this: any, label: string) {
+    (this as any)._setHooks({
+      beforeStep: (meta: any) => { meta.label = label; },
+    });
+    return this;
+  },
+};
+
+// Shared subclass with all runtime plugins registered
+const AppFlow = FlowBuilder.extend([
+  withVerbose, withStream, withCallbacks, withHumanNode, withReActLoop, withTools, labelPlugin,
+]);
+
+// Graph-capable subclass
+const GraphFlow = FlowBuilder.extend([withGraph]);
+
+// Plugin that registers any hooks with a filter — used in filter tests
+const withFilteredHooks = {
+  withBefore(this: any, filter: any, cb: any) {
+    (this as any)._setHooks({ beforeStep: cb }, filter);
+    return this;
+  },
+  withWrap(this: any, filter: any, cb: any) {
+    (this as any)._setHooks({ wrapStep: cb }, filter);
+    return this;
+  },
+  withAfterAndError(this: any, filter: any, afterCb: any, errorCb: any) {
+    (this as any)._setHooks({ afterStep: afterCb, onError: errorCb }, filter);
+    return this;
+  },
+  withAllHooks(this: any, hooks: any, filter: any) {
+    const dispose = (this as any)._setHooks(hooks, filter);
+    (this as any).__disposeFiltered = dispose;
+    return this;
+  },
+};
+const FilterFlow = FlowBuilder.extend([withFilteredHooks]);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CoreFlowBuilder — static use() (lines 228-230)
+// CoreFlowBuilder — static extend() (creates isolated subclass)
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("CoreFlowBuilder.use", () => {
-  test("copies plugin method onto CoreFlowBuilder.prototype", () => {
-    const marker = Symbol("coreUseTest");
-    CoreFlowBuilder.use({ coreUseMarker: () => marker });
-    const inst = new CoreFlowBuilder();
-    expect((inst as any).coreUseMarker()).toBe(marker);
-    // Clean up to avoid polluting other tests
-    delete (CoreFlowBuilder.prototype as any).coreUseMarker;
+describe("CoreFlowBuilder.extend", () => {
+  test("adds plugin method to subclass prototype only — not to CoreFlowBuilder.prototype", () => {
+    const marker = Symbol("coreExtendTest");
+    const Extended = CoreFlowBuilder.extend([{ coreExtendMarker: () => marker }]);
+    const inst = new Extended();
+    expect((inst as any).coreExtendMarker()).toBe(marker);
+    // Base prototype must NOT be polluted
+    expect(typeof (CoreFlowBuilder.prototype as any).coreExtendMarker).toBe("undefined");
   });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CoreFlowBuilder — addHooks with StepFilter (lines 34-49, 60-91)
-// matchesFilter and applyStepFilter
+// _setHooks() with StepFilter — matchesFilter and applyStepFilter
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("addHooks() with StepFilter", () => {
+describe("_setHooks() with StepFilter", () => {
   test("array filter — exact label match fires, non-matching label skipped", async () => {
     const fired: string[] = [];
-    const flow = new FlowBuilder<any>()
+    const flow = (new FilterFlow<any>() as any)
       .then(async () => {}, { label: "step:a" })
       .then(async () => {}, { label: "step:b" })
-      .then(async () => {}, { label: "step:c" });
-
-    flow.addHooks(
-      {
-        beforeStep: (meta) => {
-          fired.push(meta.label!);
-        },
-      },
-      ["step:b"],
-    );
+      .then(async () => {}, { label: "step:c" })
+      .withBefore(["step:b"], (meta: any) => { fired.push(meta.label!); });
 
     await flow.run({});
     expect(fired).toEqual(["step:b"]);
@@ -73,19 +96,11 @@ describe("addHooks() with StepFilter", () => {
 
   test("array filter — glob wildcard matches multiple labels", async () => {
     const fired: string[] = [];
-    const flow = new FlowBuilder<any>()
+    const flow = (new FilterFlow<any>() as any)
       .then(async () => {}, { label: "llm:think" })
       .then(async () => {}, { label: "db:write" })
-      .then(async () => {}, { label: "llm:summarize" });
-
-    flow.addHooks(
-      {
-        beforeStep: (meta) => {
-          fired.push(meta.label!);
-        },
-      },
-      ["llm:*"],
-    );
+      .then(async () => {}, { label: "llm:summarize" })
+      .withBefore(["llm:*"], (meta: any) => { fired.push(meta.label!); });
 
     await flow.run({});
     expect(fired).toEqual(["llm:think", "llm:summarize"]);
@@ -93,19 +108,11 @@ describe("addHooks() with StepFilter", () => {
 
   test("array filter — unlabelled steps are skipped by array filter", async () => {
     const fired: number[] = [];
-    const flow = new FlowBuilder<any>()
+    const flow = (new FilterFlow<any>() as any)
       .then(async () => {}) // no label
       .then(async () => {}, { label: "tagged" })
-      .then(async () => {}); // no label
-
-    flow.addHooks(
-      {
-        beforeStep: (meta) => {
-          fired.push(meta.index);
-        },
-      },
-      ["tagged"],
-    );
+      .then(async () => {}) // no label
+      .withBefore(["tagged"], (meta: any) => { fired.push(meta.index); });
 
     await flow.run({});
     expect(fired).toEqual([1]);
@@ -113,19 +120,14 @@ describe("addHooks() with StepFilter", () => {
 
   test("predicate filter — only fires when predicate returns true", async () => {
     const fired: string[] = [];
-    const flow = new FlowBuilder<any>()
+    const flow = (new FilterFlow<any>() as any)
       .then(async () => {}, { label: "pii:user" })
       .then(async () => {}, { label: "safe:step" })
-      .then(async () => {}, { label: "pii:address" });
-
-    flow.addHooks(
-      {
-        beforeStep: (meta) => {
-          fired.push(meta.label!);
-        },
-      },
-      (meta) => meta.label?.startsWith("pii:") ?? false,
-    );
+      .then(async () => {}, { label: "pii:address" })
+      .withBefore(
+        (meta: any) => meta.label?.startsWith("pii:") ?? false,
+        (meta: any) => { fired.push(meta.label!); },
+      );
 
     await flow.run({});
     expect(fired).toEqual(["pii:user", "pii:address"]);
@@ -133,30 +135,17 @@ describe("addHooks() with StepFilter", () => {
 
   test("wrapStep with filter — non-matching step still calls next()", async () => {
     const calls: string[] = [];
-    const flow = new FlowBuilder<any>()
-      .then(
-        async (s) => {
-          s.a = 1;
-        },
-        { label: "step:a" },
-      )
-      .then(
-        async (s) => {
-          s.b = 2;
-        },
-        { label: "step:b" },
-      );
-
-    flow.addHooks(
-      {
-        wrapStep: async (meta, next, shared: any) => {
+    const flow = (new FilterFlow<any>() as any)
+      .then(async (s: any) => { s.a = 1; }, { label: "step:a" })
+      .then(async (s: any) => { s.b = 2; }, { label: "step:b" })
+      .withWrap(
+        ["step:a"],
+        async (meta: any, next: any, shared: any) => {
           calls.push(meta.label!);
           shared.wrapped = true;
           await next();
         },
-      },
-      ["step:a"],
-    );
+      );
 
     const shared: any = {};
     await flow.run(shared);
@@ -171,24 +160,13 @@ describe("addHooks() with StepFilter", () => {
     const afterFired: string[] = [];
     const errorFired: string[] = [];
 
-    const flow = new FlowBuilder<any>().then(
-      async () => {
-        throw new Error("boom");
-      },
-      { label: "bad:step" },
-    );
-
-    flow.addHooks(
-      {
-        afterStep: (meta) => {
-          afterFired.push(meta.label!);
-        },
-        onError: (meta) => {
-          errorFired.push(meta.label!);
-        },
-      },
-      ["bad:step"],
-    );
+    const flow = (new FilterFlow<any>() as any)
+      .then(async () => { throw new Error("boom"); }, { label: "bad:step" })
+      .withAfterAndError(
+        ["bad:step"],
+        (meta: any) => { afterFired.push(meta.label!); },
+        (meta: any) => { errorFired.push(meta.label!); },
+      );
 
     await expect(flow.run({})).rejects.toThrow();
     expect(afterFired).toHaveLength(0); // afterStep not called when step throws
@@ -197,23 +175,17 @@ describe("addHooks() with StepFilter", () => {
 
   test("dispose removes filtered hooks", async () => {
     const fired: string[] = [];
-    const flow = new FlowBuilder<any>().then(async () => {}, {
-      label: "step:x",
-    });
-
-    const dispose = flow.addHooks(
-      {
-        beforeStep: (meta) => {
-          fired.push(meta.label!);
-        },
-      },
-      ["step:x"],
-    );
+    const flow = (new FilterFlow<any>() as any)
+      .then(async () => {}, { label: "step:x" })
+      .withAllHooks(
+        { beforeStep: (meta: any) => { fired.push(meta.label!); } },
+        ["step:x"],
+      );
 
     await flow.run({});
     expect(fired).toHaveLength(1);
 
-    dispose();
+    flow.__disposeFiltered();
     await flow.run({});
     expect(fired).toHaveLength(1); // unchanged after dispose
   });
@@ -231,7 +203,7 @@ describe("withVerbose", () => {
 
     try {
       const s: any = { x: 1 };
-      await (new FlowBuilder<any>() as any)
+      await (new AppFlow<any>() as any)
         .withVerbose()
         .startWith((s: any) => {
           s.x = 2;
@@ -259,7 +231,7 @@ describe("withStream plugin method", () => {
     const received: unknown[] = [];
     const s: any = {};
 
-    await (new FlowBuilder<any>() as any)
+    await (new AppFlow<any>() as any)
       .withStream((chunk: unknown) => received.push(chunk))
       .startWith((s: any) => {
         emit(s, "chunk-a");
@@ -280,24 +252,11 @@ describe("withStream plugin method", () => {
 // withCallbacks — tool: and agent: label prefixes (uncovered branches)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Reuse or re-register the label helper plugin (idempotent)
-const labelPlugin = {
-  withLabel(this: any, label: string) {
-    this._setHooks({
-      beforeStep: (meta: any) => {
-        meta.label = label;
-      },
-    });
-    return this;
-  },
-};
-FlowBuilder.use(labelPlugin);
-
 describe("withCallbacks — tool/agent label prefixes", () => {
   test("onToolStart / onToolEnd fire for 'tool:*' labeled steps", async () => {
     const events: string[] = [];
 
-    await (new FlowBuilder<any>() as any)
+    await (new AppFlow<any>() as any)
       .withLabel("tool:search")
       .withCallbacks({
         onToolStart: () => events.push("toolStart"),
@@ -315,7 +274,7 @@ describe("withCallbacks — tool/agent label prefixes", () => {
   test("onAgentAction / onAgentFinish fire for 'agent:*' labeled steps", async () => {
     const events: string[] = [];
 
-    await (new FlowBuilder<any>() as any)
+    await (new AppFlow<any>() as any)
       .withLabel("agent:orchestrator")
       .withCallbacks({
         onAgentAction: () => events.push("agentAction"),
@@ -342,7 +301,7 @@ describe("withExportGraph — standalone (direct call)", () => {
     (withExportGraph as any).exportGraph.call(builder, format);
 
   test("returns format: json with nodes and edges", () => {
-    const b = new FlowBuilder<any>();
+    const b = new GraphFlow<any>();
     (b as any).addNode("A", () => {});
     (b as any).addNode("B", () => {});
     (b as any).addEdge("A", "B");
@@ -358,7 +317,7 @@ describe("withExportGraph — standalone (direct call)", () => {
   });
 
   test("conditional edges are flagged correctly", () => {
-    const b = new FlowBuilder<any>();
+    const b = new GraphFlow<any>();
     (b as any).addNode("X", () => {});
     (b as any).addNode("Y", () => {});
     (b as any).addEdge("X", "Y", () => true);
@@ -368,7 +327,7 @@ describe("withExportGraph — standalone (direct call)", () => {
   });
 
   test("numeric node options are serialised", () => {
-    const b = new FlowBuilder<any>();
+    const b = new GraphFlow<any>();
     (b as any).addNode("A", () => {}, { retries: 3, timeoutMs: 5000 });
 
     const result = call(b);
@@ -377,7 +336,7 @@ describe("withExportGraph — standalone (direct call)", () => {
   });
 
   test("zero-value numeric options are omitted", () => {
-    const b = new FlowBuilder<any>();
+    const b = new GraphFlow<any>();
     (b as any).addNode("A", () => {}, { retries: 0, delaySec: 0 });
 
     const result = call(b);
@@ -385,7 +344,7 @@ describe("withExportGraph — standalone (direct call)", () => {
   });
 
   test("function options are serialised as '<dynamic>'", () => {
-    const b = new FlowBuilder<any>();
+    const b = new GraphFlow<any>();
     (b as any).addNode("A", () => {}, { retries: () => 3 });
 
     const result = call(b);
@@ -393,18 +352,18 @@ describe("withExportGraph — standalone (direct call)", () => {
   });
 
   test("throws when no graph nodes are registered", () => {
-    const b = new FlowBuilder<any>();
+    const b = new GraphFlow<any>();
     expect(() => call(b)).toThrow("no graph nodes found");
   });
 
   test("throws for 'mermaid' format", () => {
-    const b = new FlowBuilder<any>();
+    const b = new GraphFlow<any>();
     (b as any).addNode("A", () => {});
     expect(() => call(b, "mermaid")).toThrow("mermaid");
   });
 
   test("throws for an unknown format", () => {
-    const b = new FlowBuilder<any>();
+    const b = new GraphFlow<any>();
     (b as any).addNode("A", () => {});
     expect(() => call(b, "csv")).toThrow("unknown format");
   });
@@ -617,7 +576,7 @@ describe("withReActLoop — no tool registry", () => {
     const s: any = {};
 
     await expect(
-      (new FlowBuilder<any>() as any)
+      (new AppFlow<any>() as any)
         // Intentionally no .withTools() — __tools absent
         .withReActLoop({
           think: () => ({
@@ -640,7 +599,7 @@ describe("withGraph — conditional forward edge (skip-ahead)", () => {
   test("conditional forward edge skips a node when condition is true", async () => {
     const log: string[] = [];
 
-    await (new FlowBuilder<{ skip: boolean }>() as any)
+    await (new GraphFlow<{ skip: boolean }>() as any)
       .addNode("A", (s: any) => {
         log.push("A");
       })
@@ -665,7 +624,7 @@ describe("withGraph — conditional forward edge (skip-ahead)", () => {
   test("conditional forward edge does not skip when condition is false", async () => {
     const log: string[] = [];
 
-    await (new FlowBuilder<{ skip: boolean }>() as any)
+    await (new GraphFlow<{ skip: boolean }>() as any)
       .addNode("A", (s: any) => {
         log.push("A");
       })
@@ -687,7 +646,7 @@ describe("withGraph — conditional forward edge (skip-ahead)", () => {
   test("conditional forward edge from middle node skips to end", async () => {
     const log: string[] = [];
 
-    await (new FlowBuilder<{ skipToEnd: boolean }>() as any)
+    await (new GraphFlow<{ skipToEnd: boolean }>() as any)
       .addNode("start", (s: any) => {
         log.push("start");
       })

@@ -8,13 +8,13 @@ Register expanded lifecycle callbacks dispatched based on step label prefixes. P
 import { FlowBuilder } from "flowneer";
 import { withCallbacks } from "flowneer/plugins/observability";
 
-FlowBuilder.use(withCallbacks);
+const AppFlow = FlowBuilder.extend([withCallbacks]);
 ```
 
 ## Usage
 
 ```typescript
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .withCallbacks({
     onLLMStart: (meta) => console.log(`LLM step ${meta.index} starting`),
     onLLMEnd: (meta, s) => console.log(`LLM done, tokens: ${s.tokensUsed}`),

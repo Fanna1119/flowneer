@@ -24,7 +24,7 @@ Flowneer has zero runtime dependencies. The core (`FlowBuilder`, `.run()`, `.str
 import { FlowBuilder } from "flowneer";
 import { withTiming } from "flowneer/plugins/observability";
 
-FlowBuilder.use(withTiming);
+const AppFlow = FlowBuilder.extend([withTiming]);
 
 interface SummariseState {
   url: string;
@@ -32,7 +32,7 @@ interface SummariseState {
   summary: string;
 }
 
-const summariseFlow = new FlowBuilder<SummariseState>()
+const summariseFlow = new AppFlow<SummariseState>()
   .withTiming()
   .startWith(async (s) => {
     const res = await fetch(s.url);
@@ -129,7 +129,7 @@ const telemetry = new TelemetryDaemon({
   flushIntervalMs: 0,
   exporter: otlpExporter("https://otel.example.com/v1/traces"),
 });
-FlowBuilder.use(telemetry.plugin());
+const AppFlow = FlowBuilder.extend([telemetry.plugin()]);
 
 export default {
   async fetch(request: Request, env: unknown, ctx: ExecutionContext) {
@@ -159,30 +159,28 @@ import type { NextRequest } from "next/server";
 
 export const runtime = "edge";
 
-FlowBuilder.use(withTiming);
+const AppFlow = FlowBuilder.extend([withTiming]);
 
 interface State {
   prompt: string;
   result: string;
 }
 
-const flow = new FlowBuilder<State>()
-  .withTiming()
-  .startWith(async (s) => {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: s.prompt }],
-      }),
-    });
-    const data = (await res.json()) as any;
-    s.result = data.choices[0].message.content;
+const flow = new AppFlow<State>().withTiming().startWith(async (s) => {
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: s.prompt }],
+    }),
   });
+  const data = (await res.json()) as any;
+  s.result = data.choices[0].message.content;
+});
 
 export async function GET(req: NextRequest) {
   const prompt = req.nextUrl.searchParams.get("prompt") ?? "Hello";

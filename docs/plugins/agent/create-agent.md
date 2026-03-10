@@ -9,7 +9,7 @@ import { FlowBuilder } from "flowneer";
 import { tool, createAgent } from "flowneer/plugins/agent";
 ```
 
-No `FlowBuilder.use()` calls are needed — `createAgent` registers `withTools` and `withReActLoop` internally.
+No `FlowBuilder.extend()` calls are needed — `createAgent` registers `withTools` and `withReActLoop` internally.
 
 ---
 

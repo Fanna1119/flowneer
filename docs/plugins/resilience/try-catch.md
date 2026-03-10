@@ -8,7 +8,7 @@ Structured try / catch / finally blocks for flow steps. Wraps one or more steps 
 import { FlowBuilder } from "flowneer";
 import { withTryCatch } from "flowneer/plugins/resilience";
 
-FlowBuilder.use(withTryCatch);
+const AppFlow = FlowBuilder.extend([withTryCatch]);
 ```
 
 ## Usage
@@ -17,9 +17,9 @@ FlowBuilder.use(withTryCatch);
 import { FlowBuilder, fragment } from "flowneer";
 import { withTryCatch } from "flowneer/plugins/resilience";
 
-FlowBuilder.use(withTryCatch);
+const AppFlow = FlowBuilder.extend([withTryCatch]);
 
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .try(fragment<State>().then(fetchData).then(processData))
   .catch(
     fragment<State>().then((s) => {
@@ -76,7 +76,9 @@ The caught error is stored on `shared.__tryError` inside the catch fragment:
 Try/catch blocks can be nested:
 
 ```typescript
-const flow = new FlowBuilder<State>()
+const AppFlow = FlowBuilder.extend([withTryCatch]);
+
+const flow = new AppFlow<State>()
   .try(
     fragment<State>()
       .try(fragment<State>().then(riskyInner))
@@ -100,7 +102,7 @@ const flow = new FlowBuilder<State>()
 import { FlowBuilder, fragment } from "flowneer";
 import { withTryCatch } from "flowneer/plugins/resilience";
 
-FlowBuilder.use(withTryCatch);
+const AppFlow = FlowBuilder.extend([withTryCatch]);
 
 interface State {
   userId: string;
@@ -108,7 +110,7 @@ interface State {
   fromCache: boolean;
 }
 
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .try(
     fragment<State>().then(async (s) => {
       const res = await fetch(`/api/users/${s.userId}`);

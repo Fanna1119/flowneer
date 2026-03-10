@@ -10,7 +10,7 @@ without executing the flow at all.
 import { FlowBuilder } from "flowneer";
 import { withAuditFlow } from "flowneer/plugins/compliance";
 
-FlowBuilder.use(withAuditFlow);
+const AppFlow = FlowBuilder.extend([withAuditFlow]);
 ```
 
 ## Usage
@@ -19,9 +19,7 @@ FlowBuilder.use(withAuditFlow);
 import { withAuditFlow } from "flowneer/plugins/compliance";
 import type { TaintRule } from "flowneer/plugins/compliance";
 
-FlowBuilder.use(withAuditFlow);
-
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .then(fetchUser, { label: "pii:fetchUser" })
   .then(enrichProfile, { label: "pii:enrich" })
   .then(callAnalytics, { label: "external:analytics" })

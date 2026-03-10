@@ -8,7 +8,7 @@ Insert conditional pause points into a flow. When the condition is true, the flo
 import { FlowBuilder } from "flowneer";
 import { withInterrupts } from "flowneer/plugins/observability";
 
-FlowBuilder.use(withInterrupts);
+const AppFlow = FlowBuilder.extend([withInterrupts]);
 ```
 
 ## Usage
@@ -16,7 +16,7 @@ FlowBuilder.use(withInterrupts);
 ```typescript
 import { InterruptError } from "flowneer";
 
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .startWith(generateDraft)
   .interruptIf((s) => s.draft.length > 0) // pause after draft is ready
   .then(publishDraft);
@@ -67,7 +67,8 @@ Combine with [`withReplay`](../persistence/replay.md) to skip already-completed 
 
 ```typescript
 import { withReplay } from "flowneer/plugins/persistence";
-FlowBuilder.use(withReplay);
+
+const AppFlow = FlowBuilder.extend([withInterrupts, withReplay]);
 
 try {
   await flow.run(shared);

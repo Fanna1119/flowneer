@@ -18,9 +18,11 @@ import {
 } from "flowneer/plugins/resilience";
 import { withTiming } from "flowneer/plugins/observability";
 
-FlowBuilder.use(withCircuitBreaker);
-FlowBuilder.use(withFallback);
-FlowBuilder.use(withTiming);
+const AppFlow = FlowBuilder.extend([
+  withCircuitBreaker,
+  withFallback,
+  withTiming,
+]);
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
@@ -58,7 +60,7 @@ async function enrichProduct(product: Record<string, unknown>) {
 
 // ─── Flow ────────────────────────────────────────────────────────────────────
 
-const pipeline = new FlowBuilder<PipelineState>()
+const pipeline = new AppFlow<PipelineState>()
   .withTiming()
 
   // Step 1 — Fetch product, retry up to 3×, 1 s delay, 5 s timeout

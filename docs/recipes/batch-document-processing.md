@@ -15,8 +15,7 @@ import { withStructuredOutput } from "flowneer/plugins/llm";
 import { withRateLimit } from "flowneer/plugins/llm";
 import { callLlm } from "./utils/callLlm";
 
-FlowBuilder.use(withStructuredOutput);
-FlowBuilder.use(withRateLimit);
+const AppFlow = FlowBuilder.extend([withStructuredOutput, withRateLimit]);
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -56,7 +55,7 @@ function extractionPrompt(doc: Document) {
 
 // ─── Inner flow — processes one document ─────────────────────────────────────
 
-const extractFlow = new FlowBuilder<ProcessingState>()
+const extractFlow = new AppFlow<ProcessingState>()
   .withRateLimit({ requestsPerMinute: 30 })
   .startWith(async (s) => {
     const doc = s.__batchItem!;
@@ -77,7 +76,7 @@ const extractFlow = new FlowBuilder<ProcessingState>()
 
 // ─── Outer flow — batches all documents, then aggregates ─────────────────────
 
-const pipeline = new FlowBuilder<ProcessingState>()
+const pipeline = new AppFlow<ProcessingState>()
 
   .startWith((s) => {
     s.results = [];
@@ -182,7 +181,7 @@ for (let i = 0; i < documents.length; i += chunkSize) {
 }
 
 // outer batch over chunks, inner parallel over each chunk
-const pipeline = new FlowBuilder<ProcessingState>()
+const pipeline = new AppFlow<ProcessingState>()
   .startWith((s) => {
     s.results = [];
   })

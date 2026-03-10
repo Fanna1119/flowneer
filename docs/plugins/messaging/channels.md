@@ -8,7 +8,7 @@ Provides a named message channel system on `shared.__channels`. Steps communicat
 import { FlowBuilder } from "flowneer";
 import { withChannels } from "flowneer/plugins/messaging";
 
-FlowBuilder.use(withChannels);
+const AppFlow = FlowBuilder.extend([withChannels]);
 ```
 
 ## Usage
@@ -16,7 +16,7 @@ FlowBuilder.use(withChannels);
 ```typescript
 import { sendTo, receiveFrom, peekChannel } from "flowneer/plugins/messaging";
 
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .withChannels()
   .startWith(async (s) => {
     // Send results to a named channel
@@ -45,7 +45,7 @@ import { sendTo, receiveFrom, peekChannel } from "flowneer/plugins/messaging";
 ## Pattern: Fan-out / Fan-in
 
 ```typescript
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .withChannels()
   .startWith(async (s) => {
     // Fan-out: producer sends items

@@ -8,7 +8,7 @@ Attaches a `Memory` instance to `shared.__memory` before the flow starts, making
 import { FlowBuilder } from "flowneer";
 import { withMemory } from "flowneer/plugins/memory";
 
-FlowBuilder.use(withMemory);
+const AppFlow = FlowBuilder.extend([withMemory]);
 ```
 
 ## Usage
@@ -18,7 +18,7 @@ import { BufferWindowMemory, withMemory } from "flowneer/plugins/memory";
 
 const memory = new BufferWindowMemory({ maxMessages: 20 });
 
-const flow = new FlowBuilder<ChatState>()
+const flow = new AppFlow<ChatState>()
   .withMemory(memory)
   .startWith(async (s) => {
     await s.__memory!.add({ role: "user", content: s.input });

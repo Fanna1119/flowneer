@@ -8,7 +8,7 @@ Saves diff-based versioned checkpoints after each step. Each checkpoint records 
 import { FlowBuilder } from "flowneer";
 import { withVersionedCheckpoint } from "flowneer/plugins/persistence";
 
-FlowBuilder.use(withVersionedCheckpoint);
+const AppFlow = FlowBuilder.extend([withVersionedCheckpoint]);
 ```
 
 ## Store Interface
@@ -58,7 +58,7 @@ const store: VersionedCheckpointStore = {
   },
 };
 
-const flow = new FlowBuilder<State>()
+const flow = new AppFlow<State>()
   .withVersionedCheckpoint(store)
   .startWith(stepA)
   .then(stepB)
@@ -70,8 +70,6 @@ await flow.run(initialState);
 ## Resuming from a Version
 
 ```typescript
-FlowBuilder.use(withVersionedCheckpoint);
-
 // resumeFrom skips all steps up to and including the saved stepIndex
 flow.resumeFrom("v2", store);
 await flow.run({ ...restoredSnapshot });
