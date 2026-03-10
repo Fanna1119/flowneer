@@ -6,7 +6,7 @@ High-level LangChain-style factory functions for building tool-calling agents in
 
 ```typescript
 import { FlowBuilder } from "flowneer";
-import { tool, createAgent } from "flowneer/plugins/agent";
+import { tool, createAgent } from "flowneer/presets/agent";
 ```
 
 No `FlowBuilder.extend()` calls are needed — `createAgent` registers `withTools` and `withReActLoop` internally.
@@ -133,8 +133,8 @@ type LlmAdapter = (
 ```typescript
 import { z } from "zod";
 import { OpenAI } from "openai";
-import { tool, createAgent } from "flowneer/plugins/agent";
-import type { LlmAdapter, AgentState } from "flowneer/plugins/agent";
+import { tool, createAgent } from "flowneer/presets/agent";
+import type { LlmAdapter, AgentState } from "flowneer/presets/agent";
 
 // 1. Define tools
 const getWeather = tool(
@@ -220,5 +220,5 @@ The agent is **reusable** — each `.run(state)` call gets its own fresh message
 ## See also
 
 - [withReActLoop](./react-loop.md) — low-level ReAct loop primitive
-- [withTools](../tools/overview.md) — tool registry API
+- [withTools](../../plugins/tools/overview.md) — tool registry API
 - [Multi-agent Patterns](./patterns.md) — supervisor, sequential, hierarchical crews

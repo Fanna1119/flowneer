@@ -6,7 +6,7 @@ Inserts a built-in [ReAct](https://arxiv.org/abs/2210.03629) (Reason + Act) agen
 
 ```typescript
 import { FlowBuilder } from "flowneer";
-import { withReActLoop } from "flowneer/plugins/agent";
+import { withReActLoop } from "flowneer/presets/agent";
 import { withTools } from "flowneer/plugins/tools";
 
 const AppFlow = FlowBuilder.extend([withTools, withReActLoop]);
@@ -113,5 +113,5 @@ The iteration counter lives on `shared.__reactIterations` (not in a closure), so
 
 ## See Also
 
-- [`withTools`](../tools/overview.md) — tool registry and execution
+- [`withTools`](../../plugins/tools/overview.md) — tool registry and execution
 - [Agent Patterns](./patterns.md) — multi-agent orchestration

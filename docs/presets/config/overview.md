@@ -7,7 +7,7 @@ the flow structure is determined at runtime rather than compile time.
 ## Setup
 
 ```typescript
-import { JsonFlowBuilder } from "flowneer/plugins/config";
+import { JsonFlowBuilder } from "flowneer/presets/config";
 ```
 
 `JsonFlowBuilder` is a standalone class — no `FlowBuilder.extend()` call needed.
@@ -17,7 +17,7 @@ import { JsonFlowBuilder } from "flowneer/plugins/config";
 ## Quick start
 
 ```typescript
-import { JsonFlowBuilder } from "flowneer/plugins/config";
+import { JsonFlowBuilder } from "flowneer/presets/config";
 
 const config = {
   steps: [
@@ -227,7 +227,7 @@ export interface ValidationResult {
 Thrown by `build()` when validation fails. Contains the full error list.
 
 ```typescript
-import { ConfigValidationError } from "flowneer/plugins/config";
+import { ConfigValidationError } from "flowneer/presets/config";
 
 try {
   const flow = JsonFlowBuilder.build(config, registry);
