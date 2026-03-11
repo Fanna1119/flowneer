@@ -3,12 +3,11 @@
 Flowneer has four distinct extension points. Choosing the right one depends on
 what you're building and how broadly it should apply.
 
-| Mechanism                               | Scope                   | Use for                                           |
-| --------------------------------------- | ----------------------- | ------------------------------------------------- |
-| `FlowBuilder.extend([plugins])`         | Subclass, not global    | Adding new builder methods (e.g. `withTiming()`)  |
-| `flow.with([plugins])`                  | One specific instance   | Per-flow configuration (hooks, rate limits, etc.) |
-| `CoreFlowBuilder.registerStepType(...)` | All instances, globally | New first-class step types                        |
-| `flow.add(fragment)`                    | One specific flow       | Composing reusable partial flows                  |
+| Mechanism                               | Scope                   | Use for                                          |
+| --------------------------------------- | ----------------------- | ------------------------------------------------ |
+| `FlowBuilder.extend([plugins])`         | Subclass, not global    | Adding new builder methods (e.g. `withTiming()`) |
+| `CoreFlowBuilder.registerStepType(...)` | All instances, globally | New first-class step types                       |
+| `flow.add(fragment)`                    | One specific flow       | Composing reusable partial flows                 |
 
 ---
 
@@ -71,60 +70,6 @@ Publish as an npm package, or create your project's `AppFlow` once and import it
 everywhere. Methods become available on all instances of the subclass without
 affecting the base `FlowBuilder` or other subclasses.
 :::
-
----
-
-## `flow.with([plugins])` — instance plugin
-
-Applies configuration to **one specific flow instance** without touching other
-instances. Takes an `InstancePlugin`, which is a plain function that receives the
-builder and registers hooks on it.
-
-```typescript
-import type { InstancePlugin } from "flowneer";
-
-function withRateLimit(rps: number): InstancePlugin<any> {
-  return (flow) => {
-    const interval = 1000 / rps;
-    flow.addHooks({
-      beforeStep: async () => {
-        await new Promise((r) => setTimeout(r, interval));
-      },
-    });
-  };
-}
-```
-
-Use it in a chain:
-
-```typescript
-new FlowBuilder<State>()
-  .with([withRateLimit(10), withTiming()])
-  .then(callApi)
-  .run(shared);
-```
-
-Or apply to an existing instance:
-
-```typescript
-const flow = new FlowBuilder<State>().then(callApi);
-flow.with(withRateLimit(10));
-await flow.run(shared);
-```
-
-::: tip When to use this
-Use `with()` when plugin settings vary per flow (e.g. different rate limits on
-different pipelines), or when you don't want to patch the global prototype.
-:::
-
-### Difference from `FlowBuilder.extend()`
-
-|             | `FlowBuilder.extend([plugins])`         | `flow.with([plugins])`               |
-| ----------- | --------------------------------------- | ------------------------------------ |
-| **Type**    | `FlowneerPlugin[]` — objects of methods | `InstancePlugin` — a setup function  |
-| **Effect**  | Creates an isolated subclass            | Registers hooks on one instance      |
-| **Scope**   | All instances of the resulting subclass | Only this instance                   |
-| **Purpose** | Adding new builder methods              | Configuring hooks on a specific flow |
 
 ---
 
@@ -215,6 +160,5 @@ Fragments cannot be `.run()` or `.stream()` directly — they are composable
 building blocks only.
 
 ::: tip When to use this
-Use fragments to share **step sequences** between flows. Use `with()` to share
-**hook behaviour**. Use `FlowBuilder.extend()` to share **builder methods**.
+Use fragments to share **step sequences** between flows. Use `FlowBuilder.extend()` to share **builder methods**.
 :::
