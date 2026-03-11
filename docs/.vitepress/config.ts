@@ -175,6 +175,8 @@ export default defineConfig({
             link: "/presets/pipeline/generate-until-valid",
           },
           { text: "mapReduceLlm", link: "/presets/pipeline/map-reduce-llm" },
+          { text: "approvalGate", link: "/presets/pipeline/approval-gate" },
+          { text: "clarifyLoop", link: "/presets/pipeline/clarify-loop" },
         ],
       },
       {

@@ -63,8 +63,15 @@ import { ragPipeline, iterativeRag } from "flowneer/presets/rag";
 General-purpose LLM workflow patterns.
 
 ```typescript
-import { generateUntilValid, mapReduceLlm } from "flowneer/presets/pipeline";
+import {
+  generateUntilValid,
+  mapReduceLlm,
+  approvalGate,
+  clarifyLoop,
+} from "flowneer/presets/pipeline";
 ```
 
 - [generateUntilValid](./pipeline/generate-until-valid.md)
 - [mapReduceLlm](./pipeline/map-reduce-llm.md)
+- [approvalGate](./pipeline/approval-gate.md)
+- [clarifyLoop](./pipeline/clarify-loop.md)
