@@ -550,6 +550,21 @@ describe("plugin system", () => {
     expect(metas[1]).toEqual({ index: 1, type: "branch" });
   });
 
+  test("throws on duplicate method name across two plugins", () => {
+    const pA: FlowneerPlugin = { map() {} };
+    const pB: FlowneerPlugin = { map() {} };
+    expect(() => FlowBuilder.extend([pA, pB])).toThrow(
+      'Plugin method collision: "map"',
+    );
+  });
+
+  test("throws when plugin method collides with existing prototype method", () => {
+    const p: FlowneerPlugin = { then() {} };
+    expect(() => FlowBuilder.extend([p])).toThrow(
+      'Plugin method collision: "then"',
+    );
+  });
+
   test("two extend() calls are isolated — no cross-contamination", () => {
     const pA: FlowneerPlugin = {
       onlyA(this: FlowBuilder) {

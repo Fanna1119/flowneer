@@ -212,8 +212,8 @@ export class CoreFlowBuilder<
    * The base class prototype is never touched, so different `extend()`
    * calls are fully isolated from each other.
    *
-   * Plugins are applied in array order; later entries can override earlier
-   * ones for the same method name.
+   * Duplicate method names across plugins (or colliding with an existing
+   * prototype method) throw immediately to prevent silent overwrites.
    *
    * @example
    * const AppFlow = FlowBuilder.extend([withTiming, withRateLimit]);
@@ -228,11 +228,16 @@ export class CoreFlowBuilder<
   ): T {
     // Anonymous subclass so each extend() call produces a distinct prototype
     const Extended = class extends (this as any) {} as unknown as T;
+    const methods: Record<string, Function> = {};
     for (const plugin of plugins) {
       for (const [name, fn] of Object.entries(plugin)) {
-        (Extended.prototype as any)[name] = fn;
+        if (name in methods || name in Extended.prototype) {
+          throw new Error(`Plugin method collision: "${name}"`);
+        }
+        methods[name] = fn;
       }
     }
+    Object.assign(Extended.prototype, methods);
     return Extended;
   }
 
