@@ -1,4 +1,4 @@
-import type { FlowneerPlugin } from "../../Flowneer";
+import type { FlowneerPlugin, StepFilter } from "../../Flowneer";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -34,7 +34,10 @@ declare module "../../Flowneer" {
      * Save diff-based versioned checkpoints after each step.
      * Each checkpoint records only the keys that changed, plus a parent pointer.
      */
-    withVersionedCheckpoint(store: VersionedCheckpointStore<S>): this;
+    withVersionedCheckpoint(
+      store: VersionedCheckpointStore<S>,
+      filter?: StepFilter,
+    ): this;
     /**
      * Resume execution from a previously saved version.
      * Steps before the saved `stepIndex` are skipped.
@@ -65,35 +68,42 @@ function diffObjects<S extends Record<string, any>>(
 let versionCounter = 0;
 
 export const withVersionedCheckpoint: FlowneerPlugin = {
-  withVersionedCheckpoint(this: any, store: VersionedCheckpointStore) {
+  withVersionedCheckpoint(
+    this: any,
+    store: VersionedCheckpointStore,
+    filter?: StepFilter,
+  ) {
     let prevSnapshot: Record<string, any> = {};
     let lastVersion: string | null = null;
 
-    this._setHooks({
-      beforeFlow: (shared: any) => {
-        prevSnapshot = JSON.parse(JSON.stringify(shared));
-        lastVersion = null;
-      },
-      afterStep: async (meta: any, shared: any) => {
-        const curr = JSON.parse(JSON.stringify(shared));
-        const diff = diffObjects(prevSnapshot, curr);
+    this._setHooks(
+      {
+        beforeFlow: (shared: any) => {
+          prevSnapshot = JSON.parse(JSON.stringify(shared));
+          lastVersion = null;
+        },
+        afterStep: async (meta: any, shared: any) => {
+          const curr = JSON.parse(JSON.stringify(shared));
+          const diff = diffObjects(prevSnapshot, curr);
 
-        // Only save if something actually changed
-        if (Object.keys(diff).length === 0) return;
+          // Only save if something actually changed
+          if (Object.keys(diff).length === 0) return;
 
-        const version = `v${++versionCounter}`;
-        const entry: VersionedCheckpointEntry = {
-          version,
-          stepIndex: meta.index,
-          diff,
-          parentVersion: lastVersion,
-          timestamp: Date.now(),
-        };
-        await store.save(entry);
-        lastVersion = version;
-        prevSnapshot = curr;
+          const version = `v${++versionCounter}`;
+          const entry: VersionedCheckpointEntry = {
+            version,
+            stepIndex: meta.index,
+            diff,
+            parentVersion: lastVersion,
+            timestamp: Date.now(),
+          };
+          await store.save(entry);
+          lastVersion = version;
+          prevSnapshot = curr;
+        },
       },
-    });
+      filter,
+    );
     return this;
   },
 

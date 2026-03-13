@@ -1,4 +1,9 @@
-import type { FlowBuilder, FlowneerPlugin, StepMeta } from "../../Flowneer";
+import type {
+  FlowBuilder,
+  FlowneerPlugin,
+  StepFilter,
+  StepMeta,
+} from "../../Flowneer";
 
 declare module "../../Flowneer" {
   interface FlowBuilder<S, P> {
@@ -6,23 +11,26 @@ declare module "../../Flowneer" {
      * Appends a shallow snapshot of `shared` (excluding `__history`) after
      * each step to `shared.__history`.
      */
-    withHistory(): this;
+    withHistory(filter?: StepFilter): this;
   }
 }
 
 export const withHistory: FlowneerPlugin = {
-  withHistory(this: FlowBuilder<any, any>) {
-    (this as any)._setHooks({
-      afterStep: (meta: StepMeta, shared: any) => {
-        if (!Array.isArray(shared.__history)) shared.__history = [];
-        const { __history: _h, ...rest } = shared;
-        shared.__history.push({
-          index: meta.index,
-          type: meta.type,
-          snapshot: { ...rest },
-        });
+  withHistory(this: FlowBuilder<any, any>, filter?: StepFilter) {
+    (this as any)._setHooks(
+      {
+        afterStep: (meta: StepMeta, shared: any) => {
+          if (!Array.isArray(shared.__history)) shared.__history = [];
+          const { __history: _h, ...rest } = shared;
+          shared.__history.push({
+            index: meta.index,
+            type: meta.type,
+            snapshot: { ...rest },
+          });
+        },
       },
-    });
+      filter,
+    );
     return this;
   },
 };

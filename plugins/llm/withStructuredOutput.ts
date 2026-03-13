@@ -5,6 +5,7 @@
 import type {
   FlowBuilder,
   FlowneerPlugin,
+  StepFilter,
   StepMeta,
   Validator,
 } from "../../Flowneer";
@@ -62,6 +63,7 @@ declare module "../../Flowneer" {
     withStructuredOutput<T = unknown>(
       validator: Validator<T>,
       options?: StructuredOutputOptions,
+      filter?: StepFilter,
     ): this;
   }
 }
@@ -71,39 +73,45 @@ export const withStructuredOutput: FlowneerPlugin = {
     this: FlowBuilder<any, any>,
     validator: Validator,
     options?: StructuredOutputOptions,
+    filter?: StepFilter,
   ) {
     const retries = options?.retries ?? 1;
     const outputKey = options?.outputKey ?? "__llmOutput";
     const resultKey = options?.resultKey ?? "__structuredOutput";
     const parseFn = options?.parse ?? JSON.parse;
 
-    (this as any)._setHooks({
-      afterStep: (_meta: StepMeta, shared: any) => {
-        const raw = shared[outputKey];
-        if (raw === undefined) return; // step didn't produce output — skip
+    (this as any)._setHooks(
+      {
+        afterStep: (_meta: StepMeta, shared: any) => {
+          const raw = shared[outputKey];
+          if (raw === undefined) return; // step didn't produce output — skip
 
-        let lastError: unknown;
-        for (let attempt = 0; attempt < retries; attempt++) {
-          try {
-            const parsed = typeof raw === "string" ? parseFn(raw) : raw;
-            const validated = validator.parse(parsed);
-            shared[resultKey] = validated;
-            delete shared.__validationError;
-            return; // success
-          } catch (err) {
-            lastError = err;
+          let lastError: unknown;
+          for (let attempt = 0; attempt < retries; attempt++) {
+            try {
+              const parsed = typeof raw === "string" ? parseFn(raw) : raw;
+              const validated = validator.parse(parsed);
+              shared[resultKey] = validated;
+              delete shared.__validationError;
+              return; // success
+            } catch (err) {
+              lastError = err;
+            }
           }
-        }
 
-        // Exhausted retries — store error for downstream steps to handle
-        shared.__validationError = {
-          message:
-            lastError instanceof Error ? lastError.message : String(lastError),
-          raw,
-          attempts: retries,
-        };
+          // Exhausted retries — store error for downstream steps to handle
+          shared.__validationError = {
+            message:
+              lastError instanceof Error
+                ? lastError.message
+                : String(lastError),
+            raw,
+            attempts: retries,
+          };
+        },
       },
-    });
+      filter,
+    );
     return this;
   },
 };

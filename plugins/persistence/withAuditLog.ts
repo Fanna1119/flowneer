@@ -1,4 +1,9 @@
-import type { FlowBuilder, FlowneerPlugin, StepMeta } from "../../Flowneer";
+import type {
+  FlowBuilder,
+  FlowneerPlugin,
+  StepFilter,
+  StepMeta,
+} from "../../Flowneer";
 
 export interface AuditEntry<S = any> {
   stepIndex: number;
@@ -20,32 +25,39 @@ declare module "../../Flowneer" {
      * Writes an immutable audit entry to `store` after each step (success and error).
      * The `shared` snapshot in each entry is a deep clone via `JSON.parse/stringify`.
      */
-    withAuditLog(store: AuditLogStore<S>): this;
+    withAuditLog(store: AuditLogStore<S>, filter?: StepFilter): this;
   }
 }
 
 export const withAuditLog: FlowneerPlugin = {
-  withAuditLog(this: FlowBuilder<any, any>, store: AuditLogStore) {
+  withAuditLog(
+    this: FlowBuilder<any, any>,
+    store: AuditLogStore,
+    filter?: StepFilter,
+  ) {
     const clone = (v: unknown) => JSON.parse(JSON.stringify(v));
-    (this as any)._setHooks({
-      afterStep: async (meta: StepMeta, shared: unknown) => {
-        await store.append({
-          stepIndex: meta.index,
-          type: meta.type,
-          timestamp: Date.now(),
-          shared: clone(shared),
-        });
+    (this as any)._setHooks(
+      {
+        afterStep: async (meta: StepMeta, shared: unknown) => {
+          await store.append({
+            stepIndex: meta.index,
+            type: meta.type,
+            timestamp: Date.now(),
+            shared: clone(shared),
+          });
+        },
+        onError: (meta: StepMeta, err: unknown, shared: unknown) => {
+          store.append({
+            stepIndex: meta.index,
+            type: meta.type,
+            timestamp: Date.now(),
+            shared: clone(shared),
+            error: err instanceof Error ? err.message : String(err),
+          });
+        },
       },
-      onError: (meta: StepMeta, err: unknown, shared: unknown) => {
-        store.append({
-          stepIndex: meta.index,
-          type: meta.type,
-          timestamp: Date.now(),
-          shared: clone(shared),
-          error: err instanceof Error ? err.message : String(err),
-        });
-      },
-    });
+      filter,
+    );
     return this;
   },
 };
