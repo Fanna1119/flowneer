@@ -1,2 +1,2 @@
 export { JsonFlowBuilder, ConfigValidationError } from "./build";
-export type { CustomStepBuilder } from "./build";
+export type { StepConfigBuilder, CustomStepBuilder, ApplyFn } from "./build";

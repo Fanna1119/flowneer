@@ -8,13 +8,24 @@
  */
 export type FnRef = string;
 
+/**
+ * Escape-hatch for step types registered via `JsonFlowBuilder.registerStepBuilder()`.
+ * Any object with a `type` string that is not one of the built-in types satisfies
+ * this interface, so custom steps can be used in `FlowConfig` without casting.
+ */
+export interface CustomStepConfig {
+  type: string;
+  [key: string]: unknown;
+}
+
 export type StepConfig =
   | FnStepConfig
   | BranchStepConfig
   | LoopStepConfig
   | BatchStepConfig
   | ParallelStepConfig
-  | AnchorStepConfig;
+  | AnchorStepConfig
+  | CustomStepConfig;
 
 export interface FnStepConfig {
   type: "fn";

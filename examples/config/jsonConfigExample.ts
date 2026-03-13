@@ -277,12 +277,12 @@ separator("Scenario 6 — custom step type: 'log'");
     );
   });
 
-  const config = {
+  const config: FlowConfig = {
     steps: [
       { type: "log", message: "pipeline started" },
       { type: "log", message: "pipeline finished" },
     ],
-  } as FlowConfig;
+  };
 
   const flow = JsonFlowBuilder.build(config, {});
   await flow.run({});

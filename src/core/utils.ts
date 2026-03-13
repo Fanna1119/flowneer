@@ -7,21 +7,19 @@ import type { Step } from "../steps";
 
 export function matchesFilter(filter: StepFilter, meta: StepMeta): boolean {
   if (!Array.isArray(filter)) return filter(meta);
-  if (meta.label === undefined) return false;
+
   const label = meta.label;
-  return filter.some((pattern) => {
-    if (!pattern.includes("*")) return pattern === label;
-    // Convert glob pattern (* = any substring) to a RegExp
-    const re = new RegExp(
-      "^" +
-        pattern
-          .split("*")
-          .map((s) => s.replace(/[.+?^${}()|[\]\\]/g, "\\$&"))
-          .join(".*") +
-        "$",
-    );
-    return re.test(label);
-  });
+  if (label === undefined) return false;
+
+  return filter.some((p) =>
+    p.includes("*")
+      ? new RegExp(
+          "^" +
+            p.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*") +
+            "$",
+        ).test(label)
+      : p === label,
+  );
 }
 
 export function resolveNumber<S, P extends Record<string, unknown>>(

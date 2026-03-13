@@ -11,16 +11,34 @@ import type {
 import { validate } from "../../plugins/config/validate";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Custom step builder extension point
+// Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type CustomStepBuilder = (
-  step: StepConfig & { type: string },
+/** Recursive applicator passed to nested step builders (loop body, batch processor). */
+export type ApplyFn = (
+  steps: StepConfig[],
   flow: FlowBuilder<any, any>,
   registry: FnRegistry,
 ) => void;
 
-const _customBuilders = new Map<string, CustomStepBuilder>();
+/**
+ * A step config builder: receives the raw step descriptor, the flow being
+ * assembled, the fn registry, and a `recurse` helper for nested sub-steps
+ * (loop body, batch processor). Responsible for calling the appropriate
+ * `FlowBuilder` methods.
+ *
+ * Register built-ins or custom types via `JsonFlowBuilder.registerStepBuilder()`.
+ * Mirrors the `CoreFlowBuilder.registerStepType()` pattern.
+ */
+export type StepConfigBuilder = (
+  step: StepConfig & { type: string },
+  flow: FlowBuilder<any, any>,
+  registry: FnRegistry,
+  recurse: ApplyFn,
+) => void;
+
+/** @deprecated Use `StepConfigBuilder`. Kept for backwards compatibility. */
+export type CustomStepBuilder = StepConfigBuilder;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Error type
@@ -36,111 +54,86 @@ export class ConfigValidationError extends Error {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Step builder dispatch table
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Mirrors CoreFlowBuilder._stepHandlers: built-in types are registered here
+// at module init. Adding a new built-in step type only requires one entry here.
+//
+// _customTypes tracks user-registered types only — passed to validate() as
+// `additionalTypes` so structural validation still applies to built-ins normally.
+
+const _stepBuilders = new Map<string, StepConfigBuilder>();
+const _customTypes = new Set<string>();
+
+function pickOpts(step: Record<string, any>): Record<string, any> {
+  const opts: Record<string, any> = {};
+  if (step.label !== undefined) opts.label = step.label;
+  if (step.retries !== undefined) opts.retries = step.retries;
+  if (step.delaySec !== undefined) opts.delaySec = step.delaySec;
+  if (step.timeoutMs !== undefined) opts.timeoutMs = step.timeoutMs;
+  return opts;
+}
+
+// ── Built-in registrations ───────────────────────────────────────────────────
+
+_stepBuilders.set("fn", (step: any, flow, registry) => {
+  flow.then(registry[step.fn] as any, pickOpts(step));
+});
+
+_stepBuilders.set("branch", (step: any, flow, registry) => {
+  const branches: Record<string, any> = {};
+  for (const [key, ref] of Object.entries(
+    step.branches as Record<string, string>,
+  )) {
+    branches[key] = registry[ref];
+  }
+  flow.branch(registry[step.router] as any, branches, pickOpts(step));
+});
+
+_stepBuilders.set("loop", (step: any, flow, registry, recurse) => {
+  flow.loop(
+    registry[step.condition] as any,
+    (inner) => recurse(step.body, inner as any, registry),
+    { label: step.label },
+  );
+});
+
+_stepBuilders.set("batch", (step: any, flow, registry, recurse) => {
+  const opts: Record<string, any> = {};
+  if (step.key !== undefined) opts.key = step.key;
+  if (step.label !== undefined) opts.label = step.label;
+  flow.batch(
+    registry[step.items] as any,
+    (inner) => recurse(step.processor, inner as any, registry),
+    opts,
+  );
+});
+
+_stepBuilders.set("parallel", (step: any, flow, registry) => {
+  const fns = (step.fns as string[]).map((ref) => registry[ref] as any);
+  flow.parallel(fns, pickOpts(step));
+});
+
+_stepBuilders.set("anchor", (step: any, flow) => {
+  flow.anchor(step.name, step.maxVisits);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Internal recursive builder
 // ─────────────────────────────────────────────────────────────────────────────
 
 function applySteps(
-  flow: FlowBuilder<any, any>,
   steps: StepConfig[],
+  flow: FlowBuilder<any, any>,
   registry: FnRegistry,
-  isFirst: boolean,
 ): void {
-  for (let i = 0; i < steps.length; i++) {
-    const step = steps[i]!;
-
-    switch (step.type) {
-      case "fn": {
-        const fn = registry[step.fn] as any;
-        const opts = {
-          ...(step.label !== undefined ? { label: step.label } : {}),
-          ...(step.retries !== undefined ? { retries: step.retries } : {}),
-          ...(step.delaySec !== undefined ? { delaySec: step.delaySec } : {}),
-          ...(step.timeoutMs !== undefined
-            ? { timeoutMs: step.timeoutMs }
-            : {}),
-        };
-        if (i === 0 && isFirst) {
-          flow.startWith(fn, opts);
-        } else {
-          flow.then(fn, opts);
-        }
-        break;
-      }
-
-      case "branch": {
-        const router = registry[step.router] as any;
-        const branches: Record<string, any> = {};
-        for (const [key, ref] of Object.entries(step.branches)) {
-          branches[key] = registry[ref];
-        }
-        const opts = {
-          ...(step.label !== undefined ? { label: step.label } : {}),
-          ...(step.retries !== undefined ? { retries: step.retries } : {}),
-          ...(step.delaySec !== undefined ? { delaySec: step.delaySec } : {}),
-          ...(step.timeoutMs !== undefined
-            ? { timeoutMs: step.timeoutMs }
-            : {}),
-        };
-        flow.branch(router, branches, opts);
-        break;
-      }
-
-      case "loop": {
-        const condition = registry[step.condition] as any;
-        const body = step.body as StepConfig[];
-        flow.loop(
-          condition,
-          (inner) => applySteps(inner as any, body, registry, true),
-          {
-            ...(step.label !== undefined ? { label: step.label } : {}),
-          },
-        );
-        break;
-      }
-
-      case "batch": {
-        const itemsFn = registry[step.items] as any;
-        const processor = step.processor as StepConfig[];
-        flow.batch(
-          itemsFn,
-          (inner) => applySteps(inner as any, processor, registry, true),
-          {
-            ...(step.key !== undefined ? { key: step.key } : {}),
-            ...(step.label !== undefined ? { label: step.label } : {}),
-          },
-        );
-        break;
-      }
-
-      case "parallel": {
-        const fns = step.fns.map((ref) => registry[ref] as any);
-        const opts = {
-          ...(step.label !== undefined ? { label: step.label } : {}),
-          ...(step.retries !== undefined ? { retries: step.retries } : {}),
-          ...(step.delaySec !== undefined ? { delaySec: step.delaySec } : {}),
-          ...(step.timeoutMs !== undefined
-            ? { timeoutMs: step.timeoutMs }
-            : {}),
-        };
-        flow.parallel(fns, opts);
-        break;
-      }
-
-      case "anchor": {
-        flow.anchor(step.name, step.maxVisits);
-        break;
-      }
-
-      default: {
-        const custom = _customBuilders.get((step as any).type);
-        if (custom) {
-          custom(step as any, flow, registry);
-        }
-        // Unknown types are silently skipped if no custom builder is registered —
-        // validate() will have already caught this case before build() is called.
-        break;
-      }
-    }
+  const recurse: ApplyFn = (subSteps, inner, reg) =>
+    applySteps(subSteps, inner, reg);
+  for (const step of steps) {
+    _stepBuilders.get(step.type)?.(step as any, flow, registry, recurse);
+    // Unknown types are silently skipped — validate() will have caught them
+    // before build() is called.
   }
 }
 
@@ -173,7 +166,7 @@ export class JsonFlowBuilder {
    * @returns `{ valid, errors }` — errors is empty when valid.
    */
   static validate(config: unknown, registry: FnRegistry) {
-    return validate(config, registry, new Set(_customBuilders.keys()));
+    return validate(config, registry, _customTypes);
   }
 
   /**
@@ -188,26 +181,28 @@ export class JsonFlowBuilder {
     registry: FnRegistry,
     FlowClass: new () => FlowBuilder<S> = FlowBuilder as any,
   ): FlowBuilder<S> {
-    const result = validate(config, registry, new Set(_customBuilders.keys()));
+    const result = validate(config, registry, _customTypes);
     if (!result.valid) throw new ConfigValidationError(result.errors);
 
     const flow = new FlowClass();
-    applySteps(flow as any, config.steps, registry, true);
+    applySteps(config.steps, flow as any, registry);
     return flow;
   }
 
   /**
-   * Register a custom step type compiler.
+   * Register a step type compiler — for both custom and overriding built-in
+   * types. Mirrors `CoreFlowBuilder.registerStepType()`.
    *
-   * Called when `build()` encounters a step with an unknown `type`. The
-   * builder is responsible for calling the appropriate `FlowBuilder` methods.
+   * `recurse` is provided automatically for nested step types such as loop
+   * bodies and batch processors.
    *
    * @example
-   * JsonFlowBuilder.registerStepBuilder("myStep", (step, flow, registry) => {
-   *   flow.then(registry[step.fn], { label: step.label });
+   * JsonFlowBuilder.registerStepBuilder("sleep", (step, flow) => {
+   *   flow.then(async () => new Promise(r => setTimeout(r, (step as any).ms)));
    * });
    */
-  static registerStepBuilder(type: string, builder: CustomStepBuilder): void {
-    _customBuilders.set(type, builder);
+  static registerStepBuilder(type: string, builder: StepConfigBuilder): void {
+    _stepBuilders.set(type, builder);
+    _customTypes.add(type);
   }
 }

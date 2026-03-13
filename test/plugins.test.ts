@@ -22,6 +22,7 @@ import {
   withTokenBudget,
   withCostTracker,
   withRateLimit,
+  withStructuredOutput,
 } from "../plugins/llm";
 import {
   withDryRun,
@@ -1045,5 +1046,222 @@ describe("resumeFrom", () => {
       .run({});
     // Steps 0 and 1 should be skipped (index <= 1)
     expect(ran).toEqual([2]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// StepFilter scoping
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("StepFilter scoping", () => {
+  test("withTiming — only times matching steps", async () => {
+    const F = FlowBuilder.extend([withTiming]);
+    const shared: any = {};
+    await (new F() as any)
+      .withTiming(["target"])
+      .then(async () => {}, { label: "target" })
+      .then(async () => {}, { label: "other" })
+      .run(shared);
+    expect(shared.__timings?.[0]).toBeDefined();
+    expect(shared.__timings?.[1]).toBeUndefined();
+  });
+
+  test("withHistory — only snapshots matching steps", async () => {
+    const F = FlowBuilder.extend([withHistory]);
+    const shared: any = {};
+    await (new F() as any)
+      .withHistory(["target"])
+      .then(async () => {}, { label: "target" })
+      .then(async () => {}, { label: "other" })
+      .run(shared);
+    expect(shared.__history).toHaveLength(1);
+    expect(shared.__history[0].index).toBe(0);
+  });
+
+  test("withVerbose — runs without error when scoped", async () => {
+    const F = FlowBuilder.extend([withVerbose]);
+    await expect(
+      (new F() as any)
+        .withVerbose(["target"])
+        .then(async () => {}, { label: "target" })
+        .then(async () => {}, { label: "other" })
+        .run({}),
+    ).resolves.toBeUndefined();
+  });
+
+  test("withCostTracker — only accumulates cost for matching steps", async () => {
+    const F = FlowBuilder.extend([withCostTracker]);
+    const shared: any = {};
+    await (new F() as any)
+      .withCostTracker(["target"])
+      .then(
+        async (s: any) => {
+          s.__stepCost = 5;
+        },
+        { label: "target" },
+      )
+      .then(
+        async (s: any) => {
+          s.__stepCost = 99;
+        },
+        { label: "other" },
+      )
+      .run(shared);
+    expect(shared.__cost).toBe(5);
+    // "other" step's __stepCost was not cleaned up by the tracker
+    expect(shared.__stepCost).toBe(99);
+  });
+
+  test("withTokenBudget — does not check budget for non-matching steps", async () => {
+    const F = FlowBuilder.extend([withTokenBudget]);
+    // tokensUsed=200 exceeds limit=10, but the only step is "other" which is not matched
+    await expect(
+      (new F() as any)
+        .withTokenBudget(10, ["target"])
+        .then(async () => {}, { label: "other" })
+        .run({ tokensUsed: 200 }),
+    ).resolves.toBeUndefined();
+  });
+
+  test("withStructuredOutput — only validates matching steps", async () => {
+    const F = FlowBuilder.extend([withStructuredOutput]);
+    const validator = { parse: (v: unknown) => v };
+    const shared: any = {};
+    await (new F() as any)
+      .withStructuredOutput(validator, undefined, ["target"])
+      .then(
+        async (s: any) => {
+          s.__llmOutput = '{"ok":true}';
+        },
+        { label: "target" },
+      )
+      .then(
+        async (s: any) => {
+          s.__llmOutput = "NOT JSON";
+        },
+        { label: "other" },
+      )
+      .run(shared);
+    // "target" step was validated; "other" was skipped (JSON.parse("NOT JSON") was never called)
+    expect(shared.__structuredOutput).toBeDefined();
+    expect(shared.__validationError).toBeUndefined();
+  });
+
+  test("withFallback — only catches errors from matching steps", async () => {
+    const F = FlowBuilder.extend([withFallback]);
+    const fallbackRan: boolean[] = [];
+    // "other" throws but is not matched — error should propagate
+    await expect(
+      (new F() as any)
+        .withFallback(async () => {
+          fallbackRan.push(true);
+        }, ["target"])
+        .then(
+          async () => {
+            throw new Error("boom");
+          },
+          { label: "other" },
+        )
+        .run({}),
+    ).rejects.toThrow("boom");
+    expect(fallbackRan).toHaveLength(0);
+  });
+
+  test("withTimeout — only applies timeout to matching steps", async () => {
+    const F = FlowBuilder.extend([withTimeout]);
+    // "other" sleeps 50ms with a 5ms timeout that only applies to "target"
+    await expect(
+      (new F() as any)
+        .withTimeout(5, ["target"])
+        .then(async () => {}, { label: "target" })
+        .then(async () => new Promise((r) => setTimeout(r, 50)), {
+          label: "other",
+        })
+        .run({}),
+    ).resolves.toBeUndefined();
+  });
+
+  test("withTimeout — two independent timeouts on different label groups compose correctly", async () => {
+    const F = FlowBuilder.extend([withTimeout]);
+    // "fast:*" gets a 5ms budget — a slow "fast:*" step should trip it
+    // "slow:*" gets a 200ms budget — a 50ms "slow:*" step is safely within budget
+    //
+    // The key assertion: the 5ms timeout does NOT trip for the "slow:*" step
+    // even though it sleeps 50ms, because the 5ms wrapper passes through
+    // non-matching steps transparently via next().
+
+    const flow = (new F() as any)
+      .withTimeout(5, ["fast:*"])
+      .withTimeout(200, ["slow:*"])
+      .then(async () => {}, { label: "fast:ok" }) // fast, completes instantly — fine
+      .then(async () => new Promise((r) => setTimeout(r, 50)), {
+        label: "slow:a",
+      }) // 50ms — within 200ms budget, NOT caught by 5ms
+      .then(async () => new Promise((r) => setTimeout(r, 50)), {
+        label: "other",
+      }); // no filter matches — both timeouts pass through
+
+    await expect(flow.run({})).resolves.toBeUndefined();
+
+    // Confirm the 5ms budget DOES trip when a "fast:*" step actually exceeds it
+    const flow2 = (new F() as any)
+      .withTimeout(5, ["fast:*"])
+      .withTimeout(200, ["slow:*"])
+      .then(async () => new Promise((r) => setTimeout(r, 50)), {
+        label: "fast:slow",
+      }); // exceeds 5ms budget
+
+    await expect(flow2.run({})).rejects.toThrow(/timed out/);
+  });
+
+  test("withAuditLog — only logs matching steps", async () => {
+    const F = FlowBuilder.extend([withAuditLog]);
+    const entries: any[] = [];
+    const store = { append: (e: any) => entries.push(e) };
+    await (new F() as any)
+      .withAuditLog(store, ["target"])
+      .then(async () => {}, { label: "target" })
+      .then(async () => {}, { label: "other" })
+      .run({});
+    expect(entries).toHaveLength(1);
+    expect(entries[0].stepIndex).toBe(0);
+  });
+
+  test("withCheckpoint — only checkpoints matching steps", async () => {
+    const F = FlowBuilder.extend([withCheckpoint]);
+    const saves: number[] = [];
+    const store = { save: (idx: number) => saves.push(idx) };
+    await (new F() as any)
+      .withCheckpoint(store, ["target"])
+      .then(async () => {}, { label: "target" })
+      .then(async () => {}, { label: "other" })
+      .run({});
+    expect(saves).toEqual([0]);
+  });
+
+  test("withVersionedCheckpoint — only versions matching steps", async () => {
+    const F = FlowBuilder.extend([withVersionedCheckpoint]);
+    const saves: number[] = [];
+    const store = {
+      save: (e: any) => saves.push(e.stepIndex),
+      resolve: () => ({ stepIndex: 0, snapshot: {} }),
+    };
+    const shared: any = {};
+    await (new F() as any)
+      .withVersionedCheckpoint(store, ["target"])
+      .then(
+        async (s: any) => {
+          s.x = 1;
+        },
+        { label: "target" },
+      )
+      .then(
+        async (s: any) => {
+          s.y = 2;
+        },
+        { label: "other" },
+      )
+      .run(shared);
+    expect(saves).toEqual([0]);
   });
 });
