@@ -31,6 +31,7 @@ export type {
   BatchStep,
   ParallelStep,
   AnchorStep,
+  DagStep,
   Step,
   StepContext,
   StepHandler,

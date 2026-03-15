@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import type { CoreFlowBuilder } from "./core/CoreFlowBuilder";
-import type { NodeFn, NumberOrFn } from "./types";
+import type { NodeFn, NodeOptions, NumberOrFn } from "./types";
 
 export interface FnStep<S, P extends Record<string, unknown>> {
   type: "fn";
@@ -56,10 +56,39 @@ export interface AnchorStep {
   maxVisits?: number;
 }
 
+/**
+ * A compiled DAG step. Produced by the graph plugin's `.compile()` and
+ * executed by the registered "dag" step handler, which traverses nodes
+ * in topological order and fires per-node lifecycle hooks natively.
+ */
+export interface DagStep<S, P extends Record<string, unknown>> {
+  type: "dag";
+  nodes: Map<
+    string,
+    { name: string; fn: NodeFn<S, P>; options?: NodeOptions<S, P> }
+  >;
+  /** Topologically sorted node names. */
+  order: string[];
+  /** Conditional edges that point backwards (cycles). Always have a condition. */
+  backEdges: Array<{
+    from: string;
+    to: string;
+    condition: (shared: S, params: P) => boolean | Promise<boolean>;
+  }>;
+  /** Conditional edges that skip forward (not back-edges). Always have a condition. */
+  conditionalForward: Array<{
+    from: string;
+    to: string;
+    condition: (shared: S, params: P) => boolean | Promise<boolean>;
+  }>;
+  label?: string;
+}
+
 export type Step<S, P extends Record<string, unknown>> =
   | FnStep<S, P>
   | BranchStep<S, P>
   | LoopStep<S, P>
   | BatchStep<S, P>
   | ParallelStep<S, P>
-  | AnchorStep;
+  | AnchorStep
+  | DagStep<S, P>;

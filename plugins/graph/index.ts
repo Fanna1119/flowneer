@@ -13,8 +13,147 @@
 //     .compile();
 // ---------------------------------------------------------------------------
 
-import { FlowBuilder } from "../../Flowneer";
-import type { FlowneerPlugin, NodeFn, NodeOptions } from "../../Flowneer";
+import {
+  FlowBuilder,
+  CoreFlowBuilder,
+  FlowError,
+  InterruptError,
+} from "../../Flowneer";
+import type {
+  FlowneerPlugin,
+  NodeFn,
+  NodeOptions,
+  StepMeta,
+} from "../../Flowneer";
+import type { StepContext } from "../../Flowneer";
+import {
+  retry,
+  resolveNumber,
+  withTimeout,
+  runFnResult,
+} from "../../src/core/utils";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// "dag" step type handler — registered once at module load
+// ─────────────────────────────────────────────────────────────────────────────
+// Each graph node fires its own beforeStep / wrapStep / afterStep lifecycle
+// events, so all middleware (rate limiting, tracing, retries, etc.) applies
+// per-node exactly like plain .then() steps do.
+
+CoreFlowBuilder.registerStepType(
+  "dag",
+  async (
+    step: {
+      nodes: Map<string, GraphNode>;
+      order: string[];
+      backEdges: GraphEdge[];
+      conditionalForward: GraphEdge[];
+    },
+    ctx: StepContext<any, any>,
+  ) => {
+    const { nodes, order, backEdges, conditionalForward } = step;
+    const { shared, params, signal, hooks, builder } = ctx;
+
+    // Build runtime edge lookup maps
+    const backMap = new Map<
+      string,
+      Array<{ to: string; condition: NonNullable<GraphEdge["condition"]> }>
+    >();
+    for (const e of backEdges) {
+      if (!backMap.has(e.from)) backMap.set(e.from, []);
+      backMap.get(e.from)!.push({ to: e.to, condition: e.condition! });
+    }
+
+    const fwdMap = new Map<
+      string,
+      Array<{ to: string; condition: NonNullable<GraphEdge["condition"]> }>
+    >();
+    for (const e of conditionalForward) {
+      if (!fwdMap.has(e.from)) fwdMap.set(e.from, []);
+      fwdMap.get(e.from)!.push({ to: e.to, condition: e.condition! });
+    }
+
+    const positionOf = new Map(order.map((n, i) => [n, i] as const));
+
+    let i = 0;
+    while (i < order.length) {
+      signal?.throwIfAborted();
+
+      const name = order[i]!;
+      const node = nodes.get(name)!;
+      const resolved = builder._resolveOptions(node.options);
+      const nodeMeta: StepMeta = { index: i, type: "fn", label: name };
+
+      try {
+        for (const h of hooks.beforeStep) await h(nodeMeta, shared, params);
+
+        const timeoutMsVal = resolveNumber(
+          resolved.timeoutMs,
+          0,
+          shared,
+          params,
+        );
+        const execute = async () => {
+          const raw = await retry(
+            resolveNumber(resolved.retries, 1, shared, params),
+            resolveNumber(resolved.delaySec, 0, shared, params),
+            () => node.fn(shared, params),
+          );
+          // runFnResult handles async-generator streaming; route return is
+          // intentionally ignored — routing in a DAG is edge-defined.
+          await runFnResult(raw, shared);
+        };
+        const baseExec =
+          timeoutMsVal > 0 ? () => withTimeout(timeoutMsVal, execute) : execute;
+
+        await hooks.wrapStep.reduceRight<() => Promise<void>>(
+          (next, wrap) => () => wrap(nodeMeta, next, shared, params),
+          baseExec,
+        )();
+
+        for (const h of hooks.afterStep) await h(nodeMeta, shared, params);
+      } catch (err) {
+        if (err instanceof InterruptError) throw err;
+        for (const h of hooks.onError) h(nodeMeta, err, shared, params);
+        if (err instanceof FlowError) throw err;
+        throw new FlowError(`"${name}" (dag node ${i})`, err);
+      }
+
+      // Check conditional forward-skip edges (skip-ahead)
+      const fwds = fwdMap.get(name);
+      if (fwds) {
+        let skipped = false;
+        for (const { to, condition } of fwds) {
+          if (await condition(shared, params)) {
+            i = positionOf.get(to)!;
+            skipped = true;
+            break;
+          }
+        }
+        if (skipped) continue;
+      }
+
+      // Check back-edges (cycles) — jump by index, no anchors needed
+      const backs = backMap.get(name);
+      if (backs) {
+        let looped = false;
+        for (const { to, condition } of backs) {
+          if (await condition(shared, params)) {
+            i = positionOf.get(to)!;
+            looped = true;
+            break;
+          }
+        }
+        if (looped) continue;
+      }
+
+      i++;
+    }
+
+    return undefined;
+  },
+  { transparent: true },
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -221,72 +360,15 @@ export const withGraph: FlowneerPlugin = {
 
     const { order, backEdges, conditionalForward } = compileGraph(nodes, edges);
 
-    // Build a set of back-edge targets (need anchors)
-    const backEdgeTargets = new Set(backEdges.map((e) => e.to));
-
-    // Build conditional forward edge map: from → [{ to, condition }]
-    const condFwd = new Map<
-      string,
-      Array<{ to: string; condition: NonNullable<GraphEdge["condition"]> }>
-    >();
-    for (const e of conditionalForward) {
-      if (!condFwd.has(e.from)) condFwd.set(e.from, []);
-      condFwd.get(e.from)!.push({ to: e.to, condition: e.condition! });
-    }
-
-    // Build back-edge map: from → [{ to, condition }]
-    const backMap = new Map<
-      string,
-      Array<{ to: string; condition: NonNullable<GraphEdge["condition"]> }>
-    >();
-    for (const e of backEdges) {
-      if (!backMap.has(e.from)) backMap.set(e.from, []);
-      backMap.get(e.from)!.push({ to: e.to, condition: e.condition! });
-    }
-
-    // Emit the compiled flow
-    for (let i = 0; i < order.length; i++) {
-      const name = order[i]!;
-      const node = nodes.get(name)!;
-
-      // Place anchor if this node is a back-edge target
-      if (backEdgeTargets.has(name)) {
-        this.anchor(`__graph_${name}`);
-      }
-
-      // Emit the node step
-      if (i === 0 && !(this as any).steps?.length) {
-        this.startWith(node.fn, node.options);
-      } else {
-        this.then(node.fn, node.options);
-      }
-
-      // Emit conditional forward jumps (skip-ahead)
-      const fwdEdges = condFwd.get(name);
-      if (fwdEdges) {
-        for (const { to, condition } of fwdEdges) {
-          this.then(async (shared: any, params: any) => {
-            if (await condition(shared, params)) {
-              return `#__graph_${to}`;
-            }
-          });
-          // The target needs an anchor too
-          backEdgeTargets.add(to);
-        }
-      }
-
-      // Emit back-edge gotos (cycles)
-      const backs = backMap.get(name);
-      if (backs) {
-        for (const { to, condition } of backs) {
-          this.then(async (shared: any, params: any) => {
-            if (await condition(shared, params)) {
-              return `#__graph_${to}`;
-            }
-          });
-        }
-      }
-    }
+    // Push a single "dag" step — the registered handler traverses nodes,
+    // fires per-node lifecycle hooks, and handles cycles via index arithmetic.
+    (this as any)._pushStep({
+      type: "dag",
+      nodes,
+      order,
+      backEdges,
+      conditionalForward,
+    });
 
     // Clean up graph store
     delete (this as any).__graphStore;

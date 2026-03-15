@@ -81,7 +81,7 @@ export interface RunOptions {
 /** Metadata exposed to hooks — intentionally minimal to avoid coupling. */
 export interface StepMeta {
   index: number;
-  type: "fn" | "branch" | "loop" | "batch" | "parallel" | "anchor";
+  type: "fn" | "branch" | "loop" | "batch" | "parallel" | "anchor" | "dag";
   label?: string;
 }
 
