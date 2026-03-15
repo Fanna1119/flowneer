@@ -164,8 +164,20 @@ export class CoreFlowBuilder<
   private static _stepHandlers = new Map<string, StepHandler>();
 
   /**
+   * Step types registered with `{ transparent: true }` are invoked directly
+   * by `_execute` without wrapping in the outer beforeStep/wrapStep/afterStep
+   * lifecycle. Use this for step types that manage per-item lifecycle
+   * internally (e.g. a DAG handler that fires hooks once per graph node).
+   */
+  private static _transparentSteps = new Set<string>();
+
+  /**
    * Register a handler for a custom step type.
    * Called once at module load time from each step plugin.
+   *
+   * Pass `{ transparent: true }` when the handler manages its own per-item
+   * lifecycle hooks internally and should not be wrapped by the outer
+   * beforeStep / wrapStep / afterStep guards.
    *
    * @example
    * CoreFlowBuilder.registerStepType("myStep", async (step, ctx) => {
@@ -173,8 +185,13 @@ export class CoreFlowBuilder<
    *   return undefined;
    * });
    */
-  static registerStepType(type: string, handler: StepHandler): void {
+  static registerStepType(
+    type: string,
+    handler: StepHandler,
+    options?: { transparent?: boolean },
+  ): void {
     CoreFlowBuilder._stepHandlers.set(type, handler);
+    if (options?.transparent) CoreFlowBuilder._transparentSteps.add(type);
   }
 
   // -------------------------------------------------------------------------
@@ -344,6 +361,28 @@ export class CoreFlowBuilder<
 
       const step = this.steps[i]!;
       if (step.type === "anchor") continue; // pure marker — nothing to run
+
+      // Transparent step types manage per-item lifecycle hooks internally.
+      // Invoke their handler directly, bypassing the outer hook wrappers.
+      if (CoreFlowBuilder._transparentSteps.has(step.type)) {
+        const handler = CoreFlowBuilder._stepHandlers.get(step.type);
+        if (handler) {
+          const meta: StepMeta = {
+            index: i,
+            type: step.type as StepMeta["type"],
+            label: step.label,
+          };
+          await handler(step, {
+            shared,
+            params,
+            signal,
+            hooks,
+            meta,
+            builder: this,
+          });
+        }
+        continue;
+      }
 
       const stepLabel = step.label;
       const meta: StepMeta = {

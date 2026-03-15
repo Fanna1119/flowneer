@@ -20,6 +20,7 @@ export type {
   BatchStep,
   ParallelStep,
   AnchorStep,
+  DagStep,
   Step,
 } from "./steps";
 
