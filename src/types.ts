@@ -140,8 +140,32 @@ export interface FlowHooks<
     shared: S,
     params: P,
   ) => Promise<void>;
-  onError?: (meta: StepMeta, error: unknown, shared: S, params: P) => void;
+  onError?: (
+    meta: StepMeta,
+    error: unknown,
+    shared: S,
+    params: P,
+  ) => void | Promise<void>;
   afterFlow?: (shared: S, params: P) => void | Promise<void>;
+  /**
+   * Fires after each loop iteration completes. `iteration` is zero-based.
+   * Only fires for `.loop()` steps, not `.batch()` or `.parallel()`.
+   */
+  onLoopIteration?: (
+    meta: StepMeta,
+    iteration: number,
+    shared: S,
+    params: P,
+  ) => void | Promise<void>;
+  /**
+   * Fires when a goto jump resolves to an anchor (i.e. a step returned `"#anchorName"`).
+   * `anchorName` is the anchor label without the `#` prefix.
+   */
+  onAnchorHit?: (
+    anchorName: string,
+    shared: S,
+    params: P,
+  ) => void | Promise<void>;
 }
 
 /**

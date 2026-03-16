@@ -11,7 +11,7 @@
 //   structured → withStructuredOutput validates final synthesis via Zod-like schema
 //   callbacks  → withCallbacks fires LangChain-style lifecycle hooks
 //   telemetry  → withTelemetry emits OTEL-style spans via consoleExporter
-//   versioned  → withVersionedCheckpoint keeps git-like diff snapshots
+//   versioned  → withCheckpoint keeps diff-based snapshots with resumeFrom
 //   parsers    → parseJsonOutput · parseListOutput · parseRegexOutput on sections
 //   eval       → runEvalSuite scores final report quality
 //   graph      → withGraph declares inner DAG then .compile()s it
@@ -48,16 +48,16 @@ import {
 } from "../../plugins/resilience";
 import type { CircuitBreakerOptions } from "../../plugins/resilience";
 
-// Persistence (NEW: withVersionedCheckpoint replaces flat withCheckpoint)
+// Persistence
 import {
   withAuditLog,
-  withVersionedCheckpoint,
+  withCheckpoint,
+  resumeFrom,
 } from "../../plugins/persistence";
 import type {
   AuditEntry,
   AuditLogStore,
-  VersionedCheckpointEntry,
-  VersionedCheckpointStore,
+  CheckpointMeta,
 } from "../../plugins/persistence";
 
 // LLM (NEW: withStructuredOutput)
@@ -135,7 +135,8 @@ const AppFlow = FlowBuilder.extend([
   withStepLimit,
   withAtomicUpdates,
   // Persistence
-  withVersionedCheckpoint, // diff-based versioned checkpoints
+  withCheckpoint, // diff-based versioned checkpoints
+  resumeFrom,
   withAuditLog,
   // LLM
   withTokenBudget,
@@ -269,31 +270,20 @@ const conversationMemory = new BufferWindowMemory({ maxMessages: 20 });
 // KVMemory for persisting named facts between steps
 const kvMemory = new KVMemory();
 
-// ── Versioned checkpoint store ────────────────────────────────────────────────
-// Stores diff-based versioned checkpoints (like git commits).
+// ── Checkpoint store ─────────────────────────────────────────────────────────
 
-const versionedStore: VersionedCheckpointStore<BriefingState> = (() => {
-  const entries = new Map<string, VersionedCheckpointEntry<BriefingState>>();
-  let snapshots = new Map<string, BriefingState>();
-  let counter = 0;
-
-  return {
-    save(entry) {
-      const id = `v${++counter}`;
-      // Upgrade the entry object in place with the resolved id
-      (entry as any).resolvedId = id;
-      entries.set(id, entry);
-      console.log(
-        `  💾  [versioned checkpoint v${counter}] step ${entry.stepIndex}, diff keys: ${Object.keys(entry.diff).join(", ") || "(none)"}`,
-      );
-    },
-    resolve(version) {
-      // withVersionedCheckpoint rebuilds state from diffs internally.
-      // This resolve is called by resumeFrom() — safe to throw for demo.
-      throw new Error(`resolve("${version}") not implemented in mock store`);
-    },
-  };
-})();
+const versionedStore = {
+  save(snapshot: BriefingState, meta: CheckpointMeta<BriefingState>) {
+    console.log(
+      `  💾  [checkpoint] trigger=${meta.trigger}${
+        meta.stepMeta ? ` step=${meta.stepMeta.index}` : ""
+      }${meta.version ? ` version=${meta.version}` : ""}`,
+    );
+  },
+  resolve(_version: string): { stepIndex: number; snapshot?: BriefingState } {
+    throw new Error(`resolve("${_version}") not implemented in mock store`);
+  },
+};
 
 // ── Audit log ─────────────────────────────────────────────────────────────────
 
@@ -665,8 +655,7 @@ const flow = new AppFlow<BriefingState>()
   .withStepLimit(300) // max step executions
 
   // ── Persistence ───────────────────────────────────────────────────────────
-  // NEW: diff-based versioned checkpoints (git-like branching)
-  .withVersionedCheckpoint(versionedStore)
+  .withCheckpoint(versionedStore)
   .withAuditLog(auditStore)
 
   // ── LLM ───────────────────────────────────────────────────────────────────
@@ -859,18 +848,18 @@ async function main() {
 main().catch(console.error);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// APPENDIX A: Resuming with withVersionedCheckpoint (git-like branching)
+// APPENDIX A: Resuming with withCheckpoint + resumeFrom
 // ─────────────────────────────────────────────────────────────────────────────
-// withVersionedCheckpoint saves a diff after each step (only changed keys).
-// To resume from an earlier point and run a different "branch":
+// withCheckpoint saves snapshots after each step (optionally diff-based).
+// To resume from an earlier point:
 //
 //   await new FlowBuilder<BriefingState>()
-//     .withVersionedCheckpoint(versionedStore)
+//     .withCheckpoint({ save: store.save, history: { strategy: 'diff' } })
+//     .resumeFrom()
 //     // … all same plugins …
-//     .resumeFrom("v3", versionedStore) // resolves snapshot at step 3
 //     .startWith(initMemoryAndState)
 //     // … same steps …
-//     .run(newShared);
+//     .run({ ...newShared, __resumeVersion: "v3", __resumeStore: store });
 //
 // ─────────────────────────────────────────────────────────────────────────────
 // APPENDIX B: supervisorCrew / sequentialCrew (multi-agent patterns)

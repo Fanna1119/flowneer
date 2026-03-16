@@ -16,7 +16,7 @@ import {
   withCheckpoint,
   withAuditLog,
   withReplay,
-  withVersionedCheckpoint,
+  resumeFrom,
 } from "../plugins/persistence";
 import {
   withTokenBudget,
@@ -47,9 +47,9 @@ const P = FlowBuilder.extend([
   withTimeout,
   withCycles,
   withCheckpoint,
+  resumeFrom,
   withAuditLog,
   withReplay,
-  withVersionedCheckpoint,
   withTokenBudget,
   withCostTracker,
   withRateLimit,
@@ -392,15 +392,13 @@ describe("withTimeout (plugin)", () => {
 
 describe("withCheckpoint", () => {
   test("saves shared state after each step", async () => {
-    const saved: Array<{ i: number; s: unknown }> = [];
-    // Real stores serialize on write; clone here to mirror that behaviour
-    const store = {
-      save: (i: number, s: unknown) =>
-        saved.push({ i, s: JSON.parse(JSON.stringify(s)) }),
-    };
+    const saved: Array<{ i: number; v: unknown }> = [];
     const s = { v: 0 };
     await (new P<typeof s>() as any)
-      .withCheckpoint(store)
+      .withCheckpoint({
+        save: (snap: any, meta: any) =>
+          saved.push({ i: meta.stepMeta.index, v: snap.v }),
+      })
       .startWith(async (s: any) => {
         s.v = 1;
       })
@@ -409,8 +407,8 @@ describe("withCheckpoint", () => {
       })
       .run(s);
     expect(saved).toHaveLength(2);
-    expect(saved[0]).toEqual({ i: 0, s: { v: 1 } });
-    expect(saved[1]).toEqual({ i: 1, s: { v: 2 } });
+    expect(saved[0]).toEqual({ i: 0, v: 1 });
+    expect(saved[1]).toEqual({ i: 1, v: 2 });
   });
 });
 
@@ -975,53 +973,6 @@ describe("withChannels", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// withVersionedCheckpoint
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe("withVersionedCheckpoint", () => {
-  test("saves diff-based entries after each step", async () => {
-    const entries: any[] = [];
-    const store: any = {
-      save: (entry: any) => entries.push(entry),
-      resolve: () => ({ stepIndex: 0, snapshot: {} }),
-    };
-    const shared = { a: 1 };
-    await (new P() as any)
-      .withVersionedCheckpoint(store)
-      .startWith(async (s: any) => {
-        s.a = 2;
-      })
-      .then(async (s: any) => {
-        s.b = "new";
-      })
-      .run(shared);
-
-    expect(entries.length).toBe(2);
-    // First entry: a changed from 1 to 2
-    expect(entries[0].diff.a).toBe(2);
-    expect(entries[0].parentVersion).toBeNull();
-    // Second entry: b added
-    expect(entries[1].diff.b).toBe("new");
-    expect(entries[1].parentVersion).toBe(entries[0].version);
-  });
-
-  test("skips save when nothing changed", async () => {
-    const entries: any[] = [];
-    const store: any = {
-      save: (entry: any) => entries.push(entry),
-      resolve: () => ({ stepIndex: 0, snapshot: {} }),
-    };
-    await (new P() as any)
-      .withVersionedCheckpoint(store)
-      .startWith(async () => {
-        /* no-op */
-      })
-      .run({ x: 1 });
-    expect(entries.length).toBe(0);
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
 // resumeFrom
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1029,7 +980,6 @@ describe("resumeFrom", () => {
   test("skips steps at or before the saved stepIndex", async () => {
     const ran: number[] = [];
     const store: any = {
-      save: () => {},
       resolve: () => ({ stepIndex: 1, snapshot: {} }),
     };
     await (new P() as any)
@@ -1230,38 +1180,14 @@ describe("StepFilter scoping", () => {
   test("withCheckpoint — only checkpoints matching steps", async () => {
     const F = FlowBuilder.extend([withCheckpoint]);
     const saves: number[] = [];
-    const store = { save: (idx: number) => saves.push(idx) };
     await (new F() as any)
-      .withCheckpoint(store, ["target"])
+      .withCheckpoint({
+        save: (_snap: unknown, meta: any) => saves.push(meta.stepMeta.index),
+        filter: ["target"],
+      })
       .then(async () => {}, { label: "target" })
       .then(async () => {}, { label: "other" })
       .run({});
-    expect(saves).toEqual([0]);
-  });
-
-  test("withVersionedCheckpoint — only versions matching steps", async () => {
-    const F = FlowBuilder.extend([withVersionedCheckpoint]);
-    const saves: number[] = [];
-    const store = {
-      save: (e: any) => saves.push(e.stepIndex),
-      resolve: () => ({ stepIndex: 0, snapshot: {} }),
-    };
-    const shared: any = {};
-    await (new F() as any)
-      .withVersionedCheckpoint(store, ["target"])
-      .then(
-        async (s: any) => {
-          s.x = 1;
-        },
-        { label: "target" },
-      )
-      .then(
-        async (s: any) => {
-          s.y = 2;
-        },
-        { label: "other" },
-      )
-      .run(shared);
     expect(saves).toEqual([0]);
   });
 });
