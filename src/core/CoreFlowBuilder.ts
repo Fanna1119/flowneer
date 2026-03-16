@@ -69,6 +69,8 @@ function applyStepFilter<S, P extends Record<string, unknown>>(
   wrap("onError");
   wrap("wrapStep", (_m, next) => next());
   wrap("wrapParallelFn", (_m, _fi, next) => next());
+  wrap("onLoopIteration");
+  // onAnchorHit first arg is anchorName: string, not StepMeta — leave unwrapped
 
   return hooks;
 }
@@ -81,6 +83,8 @@ export type ResolvedHooks<S, P extends Record<string, unknown>> = {
   wrapParallelFn: NonNullable<FlowHooks<S, P>["wrapParallelFn"]>[];
   onError: NonNullable<FlowHooks<S, P>["onError"]>[];
   afterFlow: NonNullable<FlowHooks<S, P>["afterFlow"]>[];
+  onLoopIteration: NonNullable<FlowHooks<S, P>["onLoopIteration"]>[];
+  onAnchorHit: NonNullable<FlowHooks<S, P>["onAnchorHit"]>[];
 };
 
 function buildHookCache<S, P extends Record<string, unknown>>(
@@ -98,6 +102,8 @@ function buildHookCache<S, P extends Record<string, unknown>>(
     wrapParallelFn: pick("wrapParallelFn"),
     onError: pick("onError"),
     afterFlow: pick("afterFlow"),
+    onLoopIteration: pick("onLoopIteration"),
+    onAnchorHit: pick("onAnchorHit"),
   };
 }
 
@@ -422,10 +428,12 @@ export class CoreFlowBuilder<
           }
 
           i = target; // loop increment will land on the step after the anchor
+          for (const h of hooks.onAnchorHit)
+            await h(gotoTarget, shared, params);
         }
       } catch (err) {
         if (err instanceof InterruptError) throw err;
-        for (const h of hooks.onError) h(meta, err, shared, params);
+        for (const h of hooks.onError) await h(meta, err, shared, params);
         if (err instanceof FlowError) throw err;
         const labelPart = stepLabel ? `"${stepLabel}" ` : "";
         const label =

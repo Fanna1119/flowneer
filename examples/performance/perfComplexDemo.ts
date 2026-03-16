@@ -12,8 +12,8 @@
 //                              run 20k times
 //  6. Everything at once     — batch(3k) → parallel(8) → loop(5x) →
 //                              branch → anchor/goto + labels + 6 active hooks
-//  7. Checkpoint plugins     — withCheckpoint + withVersionedCheckpoint overhead
-//                              vs plain run; resumeFrom correctness check
+//  7. Checkpoint plugins     — withCheckpoint overhead + diff mode correctness;
+//                              resumeFrom correctness check
 //
 // All work is pure in-memory to isolate Flowneer's control-flow overhead.
 // Run with: bun run examples/perfComplexDemo.ts
@@ -21,10 +21,7 @@
 
 import { FlowBuilder, fragment } from "../../Flowneer";
 import type { FlowneerPlugin, StepMeta } from "../../Flowneer";
-import {
-  withCheckpoint,
-  withVersionedCheckpoint,
-} from "../../plugins/persistence";
+import { withCheckpoint, resumeFrom } from "../../plugins/persistence";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -86,7 +83,7 @@ const counterPlugin: FlowneerPlugin = {
 const PerfFlow = FlowBuilder.extend([
   counterPlugin,
   withCheckpoint,
-  withVersionedCheckpoint,
+  resumeFrom,
 ]);
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -598,7 +595,7 @@ async function demoKitchenSink() {
 // ─────────────────────────────────────────────────────────────────────────────
 // 7. Checkpoint plugins
 //    a) withCheckpoint overhead  — 50-step flow × 2k runs, in-memory store
-//    b) withVersionedCheckpoint  — diff correctness: only changed keys in diff
+//    b) withCheckpoint diff mode — diff correctness: only changed keys in diff
 //    c) resumeFrom correctness   — steps before checkpoint index must not fire
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -613,7 +610,7 @@ async function demoCheckpoint() {
   }
 
   const buildFlow = () => {
-    const f = new FlowBuilder<S>();
+    const f = new PerfFlow<S>();
     f.startWith(
       (s) => {
         s.n++;
@@ -642,8 +639,8 @@ async function demoCheckpoint() {
   // withCheckpoint — in-memory store
   const saves: Array<{ stepIndex: number; n: number }> = [];
   const cpFlow = buildFlow().withCheckpoint({
-    save: (stepIndex, shared: S) => {
-      saves.push({ stepIndex, n: shared.n });
+    save: (snap: S, meta) => {
+      saves.push({ stepIndex: meta.stepMeta!.index, n: (snap as S).n });
     },
   });
   const t1 = performance.now();
@@ -675,7 +672,7 @@ async function demoCheckpoint() {
 
   const vEntries: Array<{ stepIndex: number; diff: Partial<VS> }> = [];
 
-  const vFlow = new FlowBuilder<VS>().withVersionedCheckpoint({
+  const vFlow = new PerfFlow<VS>().withVersionedCheckpoint({
     save: (entry) => {
       vEntries.push({
         stepIndex: entry.stepIndex,
@@ -728,14 +725,13 @@ async function demoCheckpoint() {
   }
 
   const resumeStore = {
-    save: (_entry: unknown) => {},
     resolve: async (_v: string) => ({
       stepIndex: RESUME_AT,
       snapshot: { fired: [] as number[] },
     }),
   };
 
-  const rFlow = new FlowBuilder<RS>().resumeFrom("v1", resumeStore);
+  const rFlow = new PerfFlow<RS>().resumeFrom("v1", resumeStore);
   rFlow.startWith((s) => {
     s.fired.push(0);
   });
