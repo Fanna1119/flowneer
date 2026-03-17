@@ -27,10 +27,10 @@ import type {
   FlowneerPlugin,
   StepFilter,
   StepMeta,
-} from "../../Flowneer";
+} from "flowneer";
 
 // (1) Declare the builder method via module augmentation
-declare module "../../Flowneer" {
+declare module "flowneer" {
   interface FlowBuilder<S, P> {
     withMyPlugin(opts?: MyPluginOptions, filter?: StepFilter): this;
   }
@@ -279,8 +279,8 @@ export const withCircuitBreaker: FlowneerPlugin = {
 Use this when you need a first-class step type callable via `.myStep()` on the builder.
 
 ```typescript
-import { CoreFlowBuilder, FlowBuilder } from "../../Flowneer";
-import type { StepHandler } from "../../Flowneer";
+import { CoreFlowBuilder, FlowBuilder } from "flowneer";
+import type { StepHandler } from "flowneer";
 
 // (1) Register the engine handler once at module load
 const sleepHandler: StepHandler = async (step, ctx) => {
@@ -298,7 +298,7 @@ export const withSleep: FlowneerPlugin = {
 };
 
 // (3) TypeScript declaration
-declare module "../../Flowneer" {
+declare module "flowneer" {
   interface FlowBuilder<S, P> {
     sleep(ms: number, opts?: { label?: string }): this;
   }
