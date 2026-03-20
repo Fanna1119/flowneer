@@ -92,6 +92,61 @@ Multiple `wrapStep` registrations are **composed innermost-first** — the last 
 
 Calling `_setHooks` multiple times stacks — each call adds a new entry. The `beforeFlow`/`afterStep`/etc. handlers all run in registration order.
 
+## StepFilter — scoping hooks to specific steps
+
+Step-scoped hooks (`beforeStep`, `afterStep`, `onError`, `wrapStep`, `wrapParallelFn`) accept an optional `StepFilter` as the **second argument** to `_setHooks()`. Hooks without a filter run on every step. `beforeFlow` and `afterFlow` are unaffected by filters.
+
+```typescript
+type StepFilter = string[] | ((meta: StepMeta) => boolean);
+```
+
+### String array — label matching with glob wildcards
+
+Pass an array of step labels. The `*` character is a glob wildcard: `"llm:*"` matches `"llm:summarise"`, `"llm:embed"`, etc. Steps that have no label are **never matched** by a string filter.
+
+```typescript
+(this as any)._setHooks(
+  {
+    beforeStep: (meta, shared) => {
+      console.log("LLM step starting:", meta.label);
+    },
+  },
+  ["llm:*", "embed:*"], // only fires for steps whose label matches
+);
+```
+
+### Predicate — runtime condition or multi-criteria logic
+
+Pass a function that receives `StepMeta` and returns `true` to match:
+
+```typescript
+(this as any)._setHooks(
+  { wrapStep: rateLimitedWrap },
+  (meta) => meta.label?.startsWith("llm:") ?? false,
+);
+```
+
+### Auto-`next()` for unmatched `wrapStep` / `wrapParallelFn`
+
+When a `wrapStep` or `wrapParallelFn` hook is filtered out for a particular step, Flowneer automatically calls `next()` on its behalf. **The middleware chain is never broken** by a filter.
+
+### `addHooks(hooks, filter?)` — dynamic hook registration
+
+End users (outside of a plugin) can register hooks at runtime via `addHooks`:
+
+```typescript
+const dispose = flow.addHooks(
+  { beforeStep: (meta) => console.log("->", meta.label) },
+  ["llm:*"],
+);
+
+await flow.run(shared);
+
+dispose(); // removes the hooks
+```
+
+`addHooks` accepts the same `StepFilter` second argument as `_setHooks` and returns a `dispose()` function to remove the registered hooks.
+
 ## Complete Plugin Example
 
 ```typescript

@@ -18,7 +18,7 @@ const flow = new AppFlow<MyState>().withTiming().startWith(myStep);
 | **LLM**            | `withCostTracker`, `withRateLimit`, `withStructuredOutput`, `withTokenBudget`                     |
 | **Memory**         | `withMemory`, `BufferWindowMemory`, `KVMemory`, `SummaryMemory`                                   |
 | **Observability**  | `withCallbacks`, `withHistory`, `withInterrupts`, `withTiming`, `withVerbose`                     |
-| **Persistence**    | `withCheckpoint`, `withAuditLog`, `withReplay`, `withVersionedCheckpoint`                         |
+| **Persistence**    | `withCheckpoint`, `withAuditLog`, `withReplay`, `withVersionedCheckpoint`, `withManualStepping`   |
 | **Resilience**     | `withCircuitBreaker`, `withTimeout`, `withFallback`, `withCycles`                                 |
 | **Dev / Testing**  | `withDryRun`, `withMocks`, `withStepLimit`, `withAtomicUpdates`, `withFlowAnalyzer`               |
 | **Agent plugins**  | `withReActLoop`, `withHumanNode`, `resumeFlow`                                                    |
@@ -64,6 +64,7 @@ import {
   withAuditLog,
   withReplay,
   withVersionedCheckpoint,
+  withManualStepping,
 } from "flowneer/plugins/persistence";
 
 // Resilience
