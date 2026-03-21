@@ -27,6 +27,10 @@ declare module "../../Flowneer" {
      */
     withMemory(memory: Memory): this;
   }
+  interface AugmentedState {
+    /** Memory instance injected by `.withMemory()`. Use to read/write conversational context. */
+    __memory?: Memory;
+  }
 }
 
 export const withMemory: FlowneerPlugin = {

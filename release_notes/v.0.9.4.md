@@ -118,3 +118,178 @@ const flow = new AppFlow<State>()
 ---
 
 See the full documentation at [`docs/plugins/persistence/manual-stepping.md`](../docs/plugins/persistence/manual-stepping.md) and the runnable example at [`examples/plugins/manualSteppingExample.ts`](../examples/plugins/manualSteppingExample.ts).
+
+---
+
+## New plugin: `withPerfAnalyzer`
+
+Per-step heap, CPU, and GC profiling using only Node.js built-in performance APIs — zero external dependencies. Wraps each step body with `performance.now()`, `process.cpuUsage()`, `process.memoryUsage()`, and a `PerformanceObserver` for GC events. Results are written to `shared.__perfStats` (per step, in execution order) and `shared.__perfReport` (flow summary) after the flow completes.
+
+### Import
+
+```typescript
+import { withPerfAnalyzer } from "flowneer/plugins/dev";
+import type {
+  StepPerfStats,
+  PerfReport,
+  PerfAnalyzerOptions,
+} from "flowneer/plugins/dev";
+```
+
+### Setup
+
+```typescript
+const AppFlow = FlowBuilder.extend([withPerfAnalyzer]);
+```
+
+### Basic usage
+
+```typescript
+const flow = new AppFlow<State>()
+  .withPerfAnalyzer({
+    onReport: (r) => console.log(JSON.stringify(r, null, 2)),
+  })
+  .then(fetchData, { label: "fetch" })
+  .then(callLlm, { label: "llm:generate" })
+  .then(saveResult, { label: "save" });
+
+await flow.run(shared);
+
+console.log(shared.__perfReport.slowest?.label); // "llm:generate"
+console.log(shared.__perfReport.peakHeapUsedBytes); // e.g. 18874368
+```
+
+### `withPerfAnalyzer(options?, filter?)`
+
+| Parameter | Type                  | Description                                                                                           |
+| --------- | --------------------- | ----------------------------------------------------------------------------------------------------- |
+| `options` | `PerfAnalyzerOptions` | Profiling options (see below).                                                                        |
+| `filter`  | `StepFilter`          | Only profile matching steps; others run without instrumentation. Supports label globs and predicates. |
+
+#### `PerfAnalyzerOptions`
+
+| Option     | Type                           | Default | Description                                                                                     |
+| ---------- | ------------------------------ | ------- | ----------------------------------------------------------------------------------------------- |
+| `trackGc`  | `boolean`                      | `true`  | Accumulate GC pause events via `PerformanceObserver`. Disabled gracefully on non-Node runtimes. |
+| `onReport` | `(report: PerfReport) => void` | —       | Called with the final `PerfReport` in `afterFlow`.                                              |
+
+### `StepPerfStats` — per-step snapshot
+
+| Field                      | Description                                                                     |
+| -------------------------- | ------------------------------------------------------------------------------- |
+| `durationMs`               | Wall-clock duration (high-res via `performance.now()`).                         |
+| `cpuUserMs`                | User-space CPU time consumed during this step (ms).                             |
+| `cpuSystemMs`              | Kernel CPU time consumed during this step (ms).                                 |
+| `heapDeltaBytes`           | Net change in V8 heap (positive = allocated, negative = freed by GC).           |
+| `rssDeltaBytes`            | Net change in Resident Set Size (bytes).                                        |
+| `gcCount` / `gcDurationMs` | GC events and pause time attributed to this step. Best-effort (async observer). |
+| `threw`                    | `true` if the step threw; stats are still recorded via `finally`.               |
+
+### `PerfReport` — flow summary
+
+| Field               | Description                                                          |
+| ------------------- | -------------------------------------------------------------------- |
+| `totalDurationMs`   | Sum of all step `durationMs`.                                        |
+| `totalGcDurationMs` | Authoritative total GC pause time for the whole flow.                |
+| `peakHeapUsedBytes` | Highest `heapUsedAfter` seen across all steps.                       |
+| `slowest`           | `StepPerfStats` for the longest-running step, or `null`.             |
+| `heaviest`          | `StepPerfStats` for the step with the largest heap delta, or `null`. |
+| `steps`             | All per-step stats in execution order.                               |
+
+### Filter — profile only specific steps
+
+```typescript
+// Profile only LLM steps
+flow.withPerfAnalyzer({}, ["llm:*"]);
+```
+
+### State keys (`AugmentedState`)
+
+```typescript
+interface AugmentedState {
+  __perfStats?: StepPerfStats[];
+  __perfReport?: PerfReport;
+}
+```
+
+---
+
+See the full documentation at [`docs/plugins/dev/perf-analyzer.md`](../docs/plugins/dev/perf-analyzer.md).
+
+---
+
+## New: `AugmentedState` — automatic plugin state typing
+
+Every plugin-provided `__*` key is now reflected on a single exported interface, `AugmentedState`. Extend your state type with it and TypeScript will type all plugin keys for you — no more manual `__cost?`, `__history?`, `__tools?`, etc.
+
+### Import
+
+```typescript
+import type { AugmentedState } from "flowneer";
+```
+
+### Usage
+
+```typescript
+interface MyState extends AugmentedState {
+  topic: string;
+  results: string[];
+}
+```
+
+That's it. All plugin keys are now available with full types and JSDoc on `MyState`.
+
+### Before / after
+
+```typescript
+// Before — every plugin key had to be declared manually
+interface MyState {
+  topic: string;
+  results: string[];
+  __cost?: number;
+  __stepCost?: number;
+  __history?: Array<...>;
+  __timings?: Record<number, number>;
+  __tools?: ToolRegistry;
+  __memory?: Memory;
+  __llmOutput?: string;
+  __structuredOutput?: unknown;
+  __validationError?: { message: string; raw: unknown; attempts: number };
+  __stream?: (chunk: unknown) => void;
+  __channels?: Map<string, unknown[]>;
+  __fallbackError?: { stepIndex: number; stepType: string; message: string; stack?: string };
+  __tryError?: unknown;
+  __humanPrompt?: string;
+  __humanFeedback?: string;
+  __toolResults?: ToolResult[];
+  __reactExhausted?: boolean;
+}
+
+// After — one line
+interface MyState extends AugmentedState {
+  topic: string;
+  results: string[];
+}
+```
+
+### How it works
+
+`AugmentedState` is an empty interface in `src/types.ts`. Each plugin file adds its keys to it via TypeScript declaration merging inside its own `declare module "flowneer"` block. When you import a plugin the merge fires automatically — no extra imports or setup required.
+
+### Covered plugins
+
+| Plugin                 | Keys added                                               |
+| ---------------------- | -------------------------------------------------------- |
+| `withTiming`           | `__timings`                                              |
+| `withHistory`          | `__history`                                              |
+| `withCostTracker`      | `__cost`, `__stepCost`                                   |
+| `withStructuredOutput` | `__llmOutput`, `__structuredOutput`, `__validationError` |
+| `withChannels`         | `__channels`                                             |
+| `withStream`           | `__stream`                                               |
+| `withTools`            | `__tools`                                                |
+| `withMemory`           | `__memory`                                               |
+| `withFallback`         | `__fallbackError`                                        |
+| `withTryCatch`         | `__tryError`                                             |
+| `withHumanNode`        | `__humanPrompt`, `__humanFeedback`                       |
+| `withReActLoop`        | `__toolResults`, `__reactExhausted`                      |
+| `withPerfAnalyzer`     | `__perfStats`, `__perfReport`                            |

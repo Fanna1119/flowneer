@@ -3,8 +3,8 @@ export { withMocks } from "./withMocks";
 export { withStepLimit } from "./withStepLimit";
 export { withAtomicUpdates } from "./withAtomicUpdates";
 export { withFlowAnalyzer } from "./withFlowAnalyzer";
-export { withDebugger } from "./withDebugger";
-export type { DebuggerHooks } from "./withDebugger";
+export { withPerfAnalyzer } from "./withPerfAnalyzer";
+
 export type {
   PathNode,
   PathMap,
@@ -12,3 +12,8 @@ export type {
   TraceReport,
   TraceHandle,
 } from "./withFlowAnalyzer";
+export type {
+  StepPerfStats,
+  PerfReport,
+  PerfAnalyzerOptions,
+} from "./withPerfAnalyzer";

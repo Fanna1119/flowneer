@@ -81,6 +81,12 @@ declare module "../../Flowneer" {
      */
     withReActLoop(options: ReActLoopOptions<S, P>): this;
   }
+  interface AugmentedState {
+    /** Tool results from the previous ReAct iteration. Written by `.withReActLoop()`. */
+    __toolResults?: ToolResult[];
+    /** `true` when the loop hit `maxIterations` without the think step returning `"finish"`. */
+    __reactExhausted?: boolean;
+  }
 }
 
 export const withReActLoop: FlowneerPlugin = {

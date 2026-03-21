@@ -13,6 +13,14 @@ declare module "../../Flowneer" {
      */
     withHistory(filter?: StepFilter): this;
   }
+  interface AugmentedState {
+    /** Shallow snapshots of shared state after each step. Written by `.withHistory()`. */
+    __history?: Array<{
+      index: number;
+      type: string;
+      snapshot: Record<string, unknown>;
+    }>;
+  }
 }
 
 export const withHistory: FlowneerPlugin = {

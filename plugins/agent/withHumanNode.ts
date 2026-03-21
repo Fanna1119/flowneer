@@ -62,6 +62,12 @@ declare module "../../Flowneer" {
      */
     humanNode(options?: HumanNodeOptions<S, P>): this;
   }
+  interface AugmentedState {
+    /** Prompt/question for the human reviewer. Written by `.humanNode()` before interrupting. */
+    __humanPrompt?: string;
+    /** Human-provided response. Write this onto the saved shared state before calling `resumeFlow()`. */
+    __humanFeedback?: string;
+  }
 }
 
 export const withHumanNode: FlowneerPlugin = {

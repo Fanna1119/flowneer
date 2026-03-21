@@ -29,10 +29,16 @@ import type {
   StepMeta,
 } from "flowneer";
 
-// (1) Declare the builder method via module augmentation
+// (1) Declare the builder method AND plugin-owned shared-state keys
 declare module "flowneer" {
   interface FlowBuilder<S, P> {
     withMyPlugin(opts?: MyPluginOptions, filter?: StepFilter): this;
+  }
+  // Augment AugmentedState for every key this plugin writes to shared.
+  // Users who extend AugmentedState get these typed automatically.
+  interface AugmentedState {
+    /** Human-readable note written by `.withMyPlugin()`. */
+    __myPluginResult?: string;
   }
 }
 
@@ -348,10 +354,51 @@ export type { MyPluginOptions } from "./withMyPlugin";
 
 ---
 
+## Step 9 — Augment `AugmentedState` for every shared key your plugin writes
+
+Every `__*` key a plugin writes to `shared` must be declared inside an
+`interface AugmentedState` block in the same `declare module` section.
+This lets users who write `interface MyState extends AugmentedState` get all
+plugin keys typed and documented automatically — no manual declarations.
+
+```typescript
+// In the declare module block — alongside FlowBuilder<S, P>
+declare module "../../Flowneer" {
+  interface FlowBuilder<S, P> {
+    withMyPlugin(opts?: MyPluginOptions, filter?: StepFilter): this;
+  }
+  interface AugmentedState {
+    /**
+     * Result written by `.withMyPlugin()` after each step.
+     * `undefined` until the first step completes.
+     */
+    __myPluginResult?: string;
+    /**
+     * Error detail from the last failed step. Written by `.withMyPlugin()`;
+     * cleared on the next successful step.
+     */
+    __myPluginError?: { message: string; stepIndex: number };
+  }
+}
+```
+
+**Rules:**
+
+- One `interface AugmentedState { }` block per plugin, inside `declare module`.
+- Every key must be optional (`?`) — plugins initialise lazily.
+- Add a JSDoc comment describing _who writes it_ and _when_.
+- Keys that are internal plumbing and never useful to read from outside the
+  plugin should still be declared (document them as internal).
+- The merge is compile-time only (triggered by the import) — zero runtime cost.
+
+---
+
 ## Validation Checklist
 
 - [ ] Builder method returns `this` for chaining
 - [ ] `declare module "../../Flowneer"` augments `FlowBuilder<S, P>` (not a concrete class)
+- [ ] Every `__*` key written to `shared` is declared in `interface AugmentedState` inside the same `declare module` block, with a JSDoc comment
+- [ ] All `AugmentedState` keys are optional (`?`)
 - [ ] `InterruptError` re-thrown inside `wrapStep` catch blocks — never swallowed
 - [ ] `_setHooks` called inside the builder method body, not at module load time
 - [ ] Step-type handlers registered via `CoreFlowBuilder.registerStepType()` only once (module-level)

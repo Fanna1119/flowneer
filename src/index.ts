@@ -25,6 +25,7 @@ export type {
 } from "./steps";
 
 export type {
+  AugmentedState,
   Validator,
   StreamEvent,
   NodeFn,

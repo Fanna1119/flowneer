@@ -21,6 +21,10 @@ declare module "../../Flowneer" {
      */
     withStream<T = unknown>(subscriber: StreamSubscriber<T>): this;
   }
+  interface AugmentedState {
+    /** Active stream subscriber. Call `emit(shared, chunk)` to push to it. Written by `.withStream()`. */
+    __stream?: (chunk: unknown) => void;
+  }
 }
 /**
  * @deprecated The `withStream` plugin is deprecated and will be removed in a future release. Use the built-in streaming capabilities of Flowneer instead, which allow you to emit chunks directly from any step without needing to register a subscriber first.
