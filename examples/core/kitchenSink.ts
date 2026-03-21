@@ -26,7 +26,12 @@
 // Requires: OPENAI_API_KEY environment variable
 // ---------------------------------------------------------------------------
 
-import { FlowBuilder, FlowError, InterruptError } from "../../Flowneer";
+import {
+  FlowBuilder,
+  FlowError,
+  InterruptError,
+  type AugmentedState,
+} from "../../Flowneer";
 
 // ── Plugin imports ────────────────────────────────────────────────────────────
 
@@ -167,47 +172,16 @@ const calcCost = (inp: number, out: number) => inp * PRICE_IN + out * PRICE_OUT;
 
 // ── Shared state type ─────────────────────────────────────────────────────────
 
-interface BriefingState {
+interface BriefingState extends AugmentedState {
   topic: string;
-  // Research phase
   facts: string[];
-  // Sections
   intro?: string;
   body?: string;
   conclusion?: string;
-  // Structured synthesis
   briefing?: { title: string; summary: string; keyPoints: string[] };
-  // Evaluation
   evalResults?: EvalResult<BriefingState>[];
-  // Token tracking
   tokensUsed: number;
-  // Fallback
   lastError?: string;
-  // Agent internals
-  __reactExhausted?: boolean;
-  __toolResults?: ToolResult[];
-  __humanPrompt?: string;
-  __humanFeedback?: string;
-  // Memory
-  __memory?: Memory;
-  // Structured output
-  __llmOutput?: string;
-  __structuredOutput?: unknown;
-  __validationError?: string;
-  // Plugin internals (v1 convention)
-  __stepCost?: number;
-  __cost?: number;
-  __batchItem?: string;
-  __history?: any[];
-  __timings?: Record<number, number>;
-  __channels?: Map<string, unknown[]>;
-  __stream?: (chunk: unknown) => void;
-  __fallbackError?: {
-    stepIndex: number;
-    stepType: string;
-    message: string;
-    stack?: string;
-  };
 }
 
 // ── Tool definitions ─────────────────────────────────────────────────────────

@@ -69,6 +69,10 @@ declare module "../../Flowneer" {
      */
     finally(finallyFrag: FlowBuilder<S, P>): this;
   }
+  interface AugmentedState {
+    /** The caught error inside a `.try().catch()` block. Available within the catch fragment. */
+    __tryError?: unknown;
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -13,6 +13,16 @@ declare module "../../Flowneer" {
      */
     withCostTracker(filter?: StepFilter): this;
   }
+  interface AugmentedState {
+    /** Accumulated total cost across all steps. Written by `.withCostTracker()`. */
+    __cost?: number;
+    /**
+     * Cost of the current step — set by your step function, read and cleared
+     * by `.withCostTracker()` after each step.
+     * @example s.__stepCost = calcCost(inputTokens, outputTokens);
+     */
+    __stepCost?: number;
+  }
 }
 
 export const withCostTracker: FlowneerPlugin = {

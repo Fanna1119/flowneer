@@ -10,6 +10,10 @@ declare module "../../Flowneer" {
     /** Records wall-clock duration of each step in `shared.__timings[index]` (ms). */
     withTiming(filter?: StepFilter): this;
   }
+  interface AugmentedState {
+    /** Per-step wall-clock duration in ms, keyed by step index. Written by `.withTiming()`. */
+    __timings?: Record<number, number>;
+  }
 }
 
 export const withTiming: FlowneerPlugin = {

@@ -66,6 +66,20 @@ declare module "../../Flowneer" {
       filter?: StepFilter,
     ): this;
   }
+  interface AugmentedState {
+    /**
+     * Raw LLM output string to validate. Written by your step, read by
+     * `.withStructuredOutput()`. Key is configurable via the `outputKey` option.
+     */
+    __llmOutput?: string;
+    /** Validated structured result. Written by `.withStructuredOutput()`. */
+    __structuredOutput?: unknown;
+    /**
+     * Populated when validation fails after all retries. Contains `message`,
+     * `raw`, and `attempts`. Written by `.withStructuredOutput()`.
+     */
+    __validationError?: { message: string; raw: unknown; attempts: number };
+  }
 }
 
 export const withStructuredOutput: FlowneerPlugin = {

@@ -56,6 +56,10 @@ declare module "../../Flowneer" {
      */
     withChannels(): this;
   }
+  interface AugmentedState {
+    /** Named message queues. Use `sendTo()` / `receiveFrom()` to interact. Written by `.withChannels()`. */
+    __channels?: Map<string, unknown[]>;
+  }
 }
 
 export const withChannels: FlowneerPlugin = {

@@ -21,6 +21,7 @@ import type {
   StepFilter,
   StepMeta,
   StreamEvent,
+  ResolvedHooks,
 } from "../types";
 import type { AnchorStep, Step } from "../steps";
 import { FlowError, InterruptError } from "../errors";
@@ -74,18 +75,6 @@ function applyStepFilter<S, P extends Record<string, unknown>>(
 
   return hooks;
 }
-
-export type ResolvedHooks<S, P extends Record<string, unknown>> = {
-  beforeFlow: NonNullable<FlowHooks<S, P>["beforeFlow"]>[];
-  beforeStep: NonNullable<FlowHooks<S, P>["beforeStep"]>[];
-  wrapStep: NonNullable<FlowHooks<S, P>["wrapStep"]>[];
-  afterStep: NonNullable<FlowHooks<S, P>["afterStep"]>[];
-  wrapParallelFn: NonNullable<FlowHooks<S, P>["wrapParallelFn"]>[];
-  onError: NonNullable<FlowHooks<S, P>["onError"]>[];
-  afterFlow: NonNullable<FlowHooks<S, P>["afterFlow"]>[];
-  onLoopIteration: NonNullable<FlowHooks<S, P>["onLoopIteration"]>[];
-  onAnchorHit: NonNullable<FlowHooks<S, P>["onAnchorHit"]>[];
-};
 
 function buildHookCache<S, P extends Record<string, unknown>>(
   list: FlowHooks<S, P>[],

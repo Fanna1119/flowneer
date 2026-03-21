@@ -15,6 +15,15 @@ declare module "../../Flowneer" {
      */
     withFallback(fn: NodeFn<S, P>, filter?: StepFilter): this;
   }
+  interface AugmentedState {
+    /** Details of the error that triggered the fallback. Written by `.withFallback()`. */
+    __fallbackError?: {
+      stepIndex: number;
+      stepType: string;
+      message: string;
+      stack?: string;
+    };
+  }
 }
 
 export const withFallback: FlowneerPlugin = {

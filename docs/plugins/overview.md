@@ -13,24 +13,24 @@ const flow = new AppFlow<MyState>().withTiming().startWith(myStep);
 
 ## Plugin Categories
 
-| Category           | Surface                                                                                           |
-| ------------------ | ------------------------------------------------------------------------------------------------- |
-| **LLM**            | `withCostTracker`, `withRateLimit`, `withStructuredOutput`, `withTokenBudget`                     |
-| **Memory**         | `withMemory`, `BufferWindowMemory`, `KVMemory`, `SummaryMemory`                                   |
-| **Observability**  | `withCallbacks`, `withHistory`, `withInterrupts`, `withTiming`, `withVerbose`                     |
-| **Persistence**    | `withCheckpoint`, `withAuditLog`, `withReplay`, `withVersionedCheckpoint`                         |
-| **Resilience**     | `withCircuitBreaker`, `withTimeout`, `withFallback`, `withCycles`                                 |
-| **Dev / Testing**  | `withDryRun`, `withMocks`, `withStepLimit`, `withAtomicUpdates`, `withFlowAnalyzer`               |
-| **Agent plugins**  | `withReActLoop`, `withHumanNode`, `resumeFlow`                                                    |
-| **Agent helpers**  | `tool`, `createAgent`, `supervisorCrew`, `sequentialCrew`, `hierarchicalCrew`, `roundRobinDebate` |
-| **Tools**          | `withTools`, `ToolRegistry`, `executeTool`, `executeTools`                                        |
-| **Messaging**      | `withChannels`, `withStream`, `emit`, `sendTo`, `receiveFrom`                                     |
-| **Output helpers** | `parseJsonOutput`, `parseListOutput`, `parseRegexOutput`, `parseMarkdownTable`                    |
-| **Telemetry**      | `withTelemetry`, `TelemetryDaemon`, `consoleExporter`, `otlpExporter`                             |
-| **Graph**          | `withGraph`, `withExportGraph`, `withExportFlow`                                                  |
-| **Eval**           | `runEvalSuite`, `exactMatch`, `containsMatch`, `f1Score`, `retrievalPrecision`, `retrievalRecall` |
-| **Compliance**     | `withAuditFlow`, `withRuntimeCompliance`, `scanShared`                                            |
-| **Config**         | `JsonFlowBuilder`, `validate`                                                                     |
+| Category           | Surface                                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------------- |
+| **LLM**            | `withCostTracker`, `withRateLimit`, `withStructuredOutput`, `withTokenBudget`                           |
+| **Memory**         | `withMemory`, `BufferWindowMemory`, `KVMemory`, `SummaryMemory`                                         |
+| **Observability**  | `withCallbacks`, `withHistory`, `withInterrupts`, `withTiming`, `withVerbose`                           |
+| **Persistence**    | `withCheckpoint`, `withAuditLog`, `withReplay`, `withVersionedCheckpoint`, `withManualStepping`         |
+| **Resilience**     | `withCircuitBreaker`, `withTimeout`, `withFallback`, `withCycles`                                       |
+| **Dev / Testing**  | `withDryRun`, `withMocks`, `withStepLimit`, `withAtomicUpdates`, `withFlowAnalyzer`, `withPerfAnalyzer` |
+| **Agent plugins**  | `withReActLoop`, `withHumanNode`, `resumeFlow`                                                          |
+| **Agent helpers**  | `tool`, `createAgent`, `supervisorCrew`, `sequentialCrew`, `hierarchicalCrew`, `roundRobinDebate`       |
+| **Tools**          | `withTools`, `ToolRegistry`, `executeTool`, `executeTools`                                              |
+| **Messaging**      | `withChannels`, `withStream`, `emit`, `sendTo`, `receiveFrom`                                           |
+| **Output helpers** | `parseJsonOutput`, `parseListOutput`, `parseRegexOutput`, `parseMarkdownTable`                          |
+| **Telemetry**      | `withTelemetry`, `TelemetryDaemon`, `consoleExporter`, `otlpExporter`                                   |
+| **Graph**          | `withGraph`, `withExportGraph`, `withExportFlow`                                                        |
+| **Eval**           | `runEvalSuite`, `exactMatch`, `containsMatch`, `f1Score`, `retrievalPrecision`, `retrievalRecall`       |
+| **Compliance**     | `withAuditFlow`, `withRuntimeCompliance`, `scanShared`                                                  |
+| **Config**         | `JsonFlowBuilder`, `validate`                                                                           |
 
 ## Import Paths
 
@@ -64,6 +64,7 @@ import {
   withAuditLog,
   withReplay,
   withVersionedCheckpoint,
+  withManualStepping,
 } from "flowneer/plugins/persistence";
 
 // Resilience
@@ -128,6 +129,12 @@ import {
 
 // Dev — analysis
 import { withFlowAnalyzer } from "flowneer/plugins/dev";
+import { withPerfAnalyzer } from "flowneer/plugins/dev";
+import type {
+  StepPerfStats,
+  PerfReport,
+  PerfAnalyzerOptions,
+} from "flowneer/plugins/dev";
 
 // Config
 import { JsonFlowBuilder } from "flowneer/plugins/config";
@@ -135,7 +142,25 @@ import { JsonFlowBuilder } from "flowneer/plugins/config";
 
 ## Shared State Conventions
 
-Many plugins use reserved keys on the shared state object. By convention, built-in plugin keys are prefixed with `__` to avoid collisions with application data:
+Many plugins use reserved keys on the shared state object. By convention, built-in plugin keys are prefixed with `__` to avoid collisions with application data.
+
+### `AugmentedState` — automatic typing
+
+All plugin-provided `__*` keys are declared on the exported `AugmentedState` interface via TypeScript declaration merging. Extend your state with it to get every key typed and documented automatically:
+
+```typescript
+import type { AugmentedState } from "flowneer";
+
+interface MyState extends AugmentedState {
+  topic: string; // your domain fields
+  results: string[];
+  // __cost, __history, __tools … all typed automatically
+}
+```
+
+No additional imports or setup are needed. Augmentations are applied per-plugin when the plugin module is imported.
+
+### Key reference
 
 | Key                  | Set by                                         |
 | -------------------- | ---------------------------------------------- |
@@ -148,11 +173,14 @@ Many plugins use reserved keys on the shared state object. By convention, built-
 | `__history`          | `withHistory`                                  |
 | `__timings`          | `withTiming`                                   |
 | `__fallbackError`    | `withFallback`                                 |
+| `__tryError`         | `withTryCatch`                                 |
 | `__tools`            | `withTools`                                    |
 | `__channels`         | `withChannels`                                 |
 | `__stream`           | `withStream` / `.stream()`                     |
-| `__humanPrompt`      | `humanNode`                                    |
+| `__humanPrompt`      | `withHumanNode`                                |
+| `__humanFeedback`    | Written by caller before `resumeFlow()`        |
 | `__toolResults`      | `withReActLoop`                                |
-| `__reactOutput`      | `withReActLoop`                                |
 | `__reactExhausted`   | `withReActLoop`                                |
 | `__batchItem`        | `.batch()` (configurable via `key`)            |
+| `__perfStats`        | `withPerfAnalyzer` (per-step stats array)      |
+| `__perfReport`       | `withPerfAnalyzer` (flow-level summary)        |

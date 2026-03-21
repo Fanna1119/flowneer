@@ -5,6 +5,21 @@
 import type { FlowBuilder } from "./FlowBuilder";
 
 /**
+ * Extendable shared-state interface augmented by each plugin via declaration
+ * merging. Extend your state type with this to get all plugin-provided keys
+ * typed and documented automatically — no manual `__*` declarations needed.
+ *
+ * @example
+ * import type { AugmentedState } from "flowneer";
+ * interface MyState extends AugmentedState {
+ *   topic: string;
+ *   results: string[];
+ * }
+ */
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+export interface AugmentedState {}
+
+/**
  * Generic validator interface — structurally compatible with Zod, ArkType,
  * Valibot, or any custom implementation that exposes `.parse(input)`.
  * Used by `withStructuredOutput` and output parsers.
@@ -183,3 +198,15 @@ export type FlowneerPlugin = Record<
   string,
   (this: FlowBuilder<any, any>, ...args: any[]) => any
 >;
+
+export type ResolvedHooks<S, P extends Record<string, unknown>> = {
+  beforeFlow: NonNullable<FlowHooks<S, P>["beforeFlow"]>[];
+  beforeStep: NonNullable<FlowHooks<S, P>["beforeStep"]>[];
+  wrapStep: NonNullable<FlowHooks<S, P>["wrapStep"]>[];
+  afterStep: NonNullable<FlowHooks<S, P>["afterStep"]>[];
+  wrapParallelFn: NonNullable<FlowHooks<S, P>["wrapParallelFn"]>[];
+  onError: NonNullable<FlowHooks<S, P>["onError"]>[];
+  afterFlow: NonNullable<FlowHooks<S, P>["afterFlow"]>[];
+  onLoopIteration: NonNullable<FlowHooks<S, P>["onLoopIteration"]>[];
+  onAnchorHit: NonNullable<FlowHooks<S, P>["onAnchorHit"]>[];
+};

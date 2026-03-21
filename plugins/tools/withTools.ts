@@ -194,6 +194,13 @@ declare module "../../Flowneer" {
      */
     withTools(tools: Tool[]): this;
   }
+  interface AugmentedState {
+    /**
+     * Tool registry injected by `.withTools()`. Use `getTools(shared)`,
+     * `executeTool(shared, call)`, or `executeTools(shared, calls)` to interact.
+     */
+    __tools?: ToolRegistry;
+  }
 }
 
 export const withTools: FlowneerPlugin = {
