@@ -16,19 +16,8 @@ export {
 export type { CircuitBreakerOptions } from "./resilience/index";
 
 // Persistence
-export {
-  withCheckpoint,
-  withAuditLog,
-  withReplay,
-  withVersionedCheckpoint,
-} from "./persistence/index";
-export type {
-  CheckpointStore,
-  AuditEntry,
-  AuditLogStore,
-  VersionedCheckpointEntry,
-  VersionedCheckpointStore,
-} from "./persistence/index";
+export { withCheckpoint, withAuditLog, withReplay } from "./persistence/index";
+export type { AuditEntry, AuditLogStore } from "./persistence/index";
 
 // LLM
 export { withTokenBudget, withCostTracker, withRateLimit } from "./llm/index";

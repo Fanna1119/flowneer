@@ -7,11 +7,7 @@ export { CoreFlowBuilder } from "./core/CoreFlowBuilder";
 export { Fragment, fragment } from "./Fragment";
 export { FlowError, InterruptError } from "./errors";
 
-export type {
-  StepContext,
-  StepHandler,
-  ResolvedHooks,
-} from "./core/CoreFlowBuilder";
+export type { StepContext, StepHandler } from "./core/CoreFlowBuilder";
 
 export type {
   FnStep,
@@ -36,4 +32,5 @@ export type {
   StepFilter,
   FlowHooks,
   FlowneerPlugin,
+  ResolvedHooks,
 } from "./types";
