@@ -45,7 +45,6 @@ export default defineConfig({
           },
           { text: "Human-in-the-loop", link: "/recipes/human-in-the-loop" },
           { text: "Edge Runtime", link: "/recipes/edge-runtime" },
-          { text: "Immer State", link: "/recipes/immer-state" },
         ],
       },
       {
@@ -57,10 +56,6 @@ export default defineConfig({
           { text: "Anchors & Routing", link: "/core/anchors-routing" },
           { text: "Streaming", link: "/core/streaming" },
           { text: "Writing Plugins", link: "/core/plugins" },
-          {
-            text: "StepFilter",
-            link: "/core/plugins#stepfilter--scoping-hooks-to-specific-steps",
-          },
           { text: "Extending Flowneer", link: "/core/extending" },
           { text: "Errors", link: "/core/errors" },
         ],
@@ -156,6 +151,7 @@ export default defineConfig({
           { text: "createAgent & tool()", link: "/presets/agent/create-agent" },
           { text: "withReActLoop", link: "/presets/agent/react-loop" },
           { text: "Multi-agent Patterns", link: "/presets/agent/patterns" },
+          { text: "Swarm", link: "/presets/agent/swarm" },
         ],
       },
       {
