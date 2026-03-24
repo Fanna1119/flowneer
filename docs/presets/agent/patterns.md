@@ -10,6 +10,8 @@ import {
   sequentialCrew,
   hierarchicalCrew,
   roundRobinDebate,
+  swarm,
+  handoffTo,
 } from "flowneer/presets/agent";
 ```
 
@@ -158,6 +160,32 @@ The current round is tracked in `shared.__debateRound`.
 function roundRobinDebate<S, P>(
   agents: NodeFn<S, P>[],
   rounds: number,
+): FlowBuilder<S, P>;
+```
+
+---
+
+## `swarm`
+
+Decentralized peer-to-peer handoff: any agent can pass control to any other agent at runtime. No central manager. Agents call `handoffTo(shared, targetName, reason?)` inside their `fn` to request a handoff; the loop repeats until an agent finishes without handing off or `maxHandoffs` is reached.
+
+See **[swarm.md](./swarm.md)** for the full guide.
+
+```typescript
+const flow = swarm([triageAgent, billingAgent, supportAgent], {
+  defaultAgent: "triage",
+  maxHandoffs: 5,
+});
+
+await flow.run({ messages: [{ role: "user", content: "I need a refund" }] });
+```
+
+### Signature
+
+```typescript
+function swarm<S extends SwarmState, P>(
+  agents: SwarmAgent<S, P>[],
+  options: SwarmOptions<S>,
 ): FlowBuilder<S, P>;
 ```
 

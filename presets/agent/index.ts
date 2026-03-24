@@ -17,6 +17,16 @@ export type {
 export { selfConsistency } from "./selfConsistency";
 export { critiqueAndRevise } from "./critiqueAndRevise";
 
+export { swarm, handoffTo, historyText } from "./swarm";
+export type {
+  SwarmAgent,
+  SwarmState,
+  SwarmOptions,
+  SwarmMessage,
+  RouterContext,
+  SwarmRouter,
+} from "./swarm";
+
 export { tool } from "./tool";
 export type {
   ZodLikeObject,

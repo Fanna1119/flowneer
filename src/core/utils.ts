@@ -5,21 +5,41 @@
 import type { NumberOrFn, StepMeta, StepFilter } from "../types";
 import type { Step } from "../steps";
 
+function matchesPattern(pattern: string, label: string): boolean {
+  return pattern.includes("*")
+    ? new RegExp(
+        "^" +
+          pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*") +
+          "$",
+      ).test(label)
+    : pattern === label;
+}
+
 export function matchesFilter(filter: StepFilter, meta: StepMeta): boolean {
   if (!Array.isArray(filter)) return filter(meta);
 
-  const label = meta.label;
-  if (label === undefined) return false;
+  const negations = filter.filter((p) => p.startsWith("!"));
+  const positives = filter.filter((p) => !p.startsWith("!"));
 
-  return filter.some((p) =>
-    p.includes("*")
-      ? new RegExp(
-          "^" +
-            p.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*") +
-            "$",
-        ).test(label)
-      : p === label,
-  );
+  const label = meta.label;
+
+  // Negation veto: if any negation pattern matches, reject immediately.
+  // Negations require a label — an unlabelled step cannot be vetoed.
+  if (
+    label !== undefined &&
+    negations.some((p) => matchesPattern(p.slice(1), label))
+  )
+    return false;
+
+  // Positive patterns: if any are present, the label must match at least one.
+  // Unlabelled steps never match a positive pattern.
+  if (positives.length > 0)
+    return (
+      label !== undefined && positives.some((p) => matchesPattern(p, label))
+    );
+
+  // Negation-only filter: match everything that wasn't vetoed above.
+  return true;
 }
 
 export function resolveNumber<S, P extends Record<string, unknown>>(
