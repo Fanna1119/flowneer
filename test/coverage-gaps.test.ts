@@ -26,7 +26,9 @@ import { withReActLoop } from "../presets/agent/withReActLoop";
 const labelPlugin = {
   withLabel(this: any, label: string) {
     (this as any)._setHooks({
-      beforeStep: (meta: any) => { meta.label = label; },
+      beforeStep: (meta: any) => {
+        meta.label = label;
+      },
     });
     return this;
   },
@@ -34,7 +36,13 @@ const labelPlugin = {
 
 // Shared subclass with all runtime plugins registered
 const AppFlow = FlowBuilder.extend([
-  withVerbose, withStream, withCallbacks, withHumanNode, withReActLoop, withTools, labelPlugin,
+  withVerbose,
+  withStream,
+  withCallbacks,
+  withHumanNode,
+  withReActLoop,
+  withTools,
+  labelPlugin,
 ]);
 
 // Graph-capable subclass
@@ -69,11 +77,15 @@ const FilterFlow = FlowBuilder.extend([withFilteredHooks]);
 describe("CoreFlowBuilder.extend", () => {
   test("adds plugin method to subclass prototype only — not to CoreFlowBuilder.prototype", () => {
     const marker = Symbol("coreExtendTest");
-    const Extended = CoreFlowBuilder.extend([{ coreExtendMarker: () => marker }]);
+    const Extended = CoreFlowBuilder.extend([
+      { coreExtendMarker: () => marker },
+    ]);
     const inst = new Extended();
     expect((inst as any).coreExtendMarker()).toBe(marker);
     // Base prototype must NOT be polluted
-    expect(typeof (CoreFlowBuilder.prototype as any).coreExtendMarker).toBe("undefined");
+    expect(typeof (CoreFlowBuilder.prototype as any).coreExtendMarker).toBe(
+      "undefined",
+    );
   });
 });
 
@@ -88,7 +100,9 @@ describe("_setHooks() with StepFilter", () => {
       .then(async () => {}, { label: "step:a" })
       .then(async () => {}, { label: "step:b" })
       .then(async () => {}, { label: "step:c" })
-      .withBefore(["step:b"], (meta: any) => { fired.push(meta.label!); });
+      .withBefore(["step:b"], (meta: any) => {
+        fired.push(meta.label!);
+      });
 
     await flow.run({});
     expect(fired).toEqual(["step:b"]);
@@ -100,7 +114,9 @@ describe("_setHooks() with StepFilter", () => {
       .then(async () => {}, { label: "llm:think" })
       .then(async () => {}, { label: "db:write" })
       .then(async () => {}, { label: "llm:summarize" })
-      .withBefore(["llm:*"], (meta: any) => { fired.push(meta.label!); });
+      .withBefore(["llm:*"], (meta: any) => {
+        fired.push(meta.label!);
+      });
 
     await flow.run({});
     expect(fired).toEqual(["llm:think", "llm:summarize"]);
@@ -112,7 +128,9 @@ describe("_setHooks() with StepFilter", () => {
       .then(async () => {}) // no label
       .then(async () => {}, { label: "tagged" })
       .then(async () => {}) // no label
-      .withBefore(["tagged"], (meta: any) => { fired.push(meta.index); });
+      .withBefore(["tagged"], (meta: any) => {
+        fired.push(meta.index);
+      });
 
     await flow.run({});
     expect(fired).toEqual([1]);
@@ -126,7 +144,9 @@ describe("_setHooks() with StepFilter", () => {
       .then(async () => {}, { label: "pii:address" })
       .withBefore(
         (meta: any) => meta.label?.startsWith("pii:") ?? false,
-        (meta: any) => { fired.push(meta.label!); },
+        (meta: any) => {
+          fired.push(meta.label!);
+        },
       );
 
     await flow.run({});
@@ -136,16 +156,23 @@ describe("_setHooks() with StepFilter", () => {
   test("wrapStep with filter — non-matching step still calls next()", async () => {
     const calls: string[] = [];
     const flow = (new FilterFlow<any>() as any)
-      .then(async (s: any) => { s.a = 1; }, { label: "step:a" })
-      .then(async (s: any) => { s.b = 2; }, { label: "step:b" })
-      .withWrap(
-        ["step:a"],
-        async (meta: any, next: any, shared: any) => {
-          calls.push(meta.label!);
-          shared.wrapped = true;
-          await next();
+      .then(
+        async (s: any) => {
+          s.a = 1;
         },
-      );
+        { label: "step:a" },
+      )
+      .then(
+        async (s: any) => {
+          s.b = 2;
+        },
+        { label: "step:b" },
+      )
+      .withWrap(["step:a"], async (meta: any, next: any, shared: any) => {
+        calls.push(meta.label!);
+        shared.wrapped = true;
+        await next();
+      });
 
     const shared: any = {};
     await flow.run(shared);
@@ -161,11 +188,20 @@ describe("_setHooks() with StepFilter", () => {
     const errorFired: string[] = [];
 
     const flow = (new FilterFlow<any>() as any)
-      .then(async () => { throw new Error("boom"); }, { label: "bad:step" })
+      .then(
+        async () => {
+          throw new Error("boom");
+        },
+        { label: "bad:step" },
+      )
       .withAfterAndError(
         ["bad:step"],
-        (meta: any) => { afterFired.push(meta.label!); },
-        (meta: any) => { errorFired.push(meta.label!); },
+        (meta: any) => {
+          afterFired.push(meta.label!);
+        },
+        (meta: any) => {
+          errorFired.push(meta.label!);
+        },
       );
 
     await expect(flow.run({})).rejects.toThrow();
@@ -173,12 +209,90 @@ describe("_setHooks() with StepFilter", () => {
     expect(errorFired).toEqual(["bad:step"]);
   });
 
+  // ── Negation patterns ────────────────────────────────────────────────────
+
+  test("negation-only filter — fires on all labelled steps except excluded", async () => {
+    const fired: string[] = [];
+    const flow = (new FilterFlow<any>() as any)
+      .then(async () => {}, { label: "human:approve" })
+      .then(async () => {}, { label: "llm:generate" })
+      .then(async () => {}, { label: "db:save" })
+      .withBefore(["!human:*"], (meta: any) => {
+        fired.push(meta.label!);
+      });
+
+    await flow.run({});
+    expect(fired).toEqual(["llm:generate", "db:save"]);
+  });
+
+  test("negation-only filter — exact negation excludes one label", async () => {
+    const fired: string[] = [];
+    const flow = (new FilterFlow<any>() as any)
+      .then(async () => {}, { label: "step:a" })
+      .then(async () => {}, { label: "step:b" })
+      .then(async () => {}, { label: "step:c" })
+      .withBefore(["!step:b"], (meta: any) => {
+        fired.push(meta.label!);
+      });
+
+    await flow.run({});
+    expect(fired).toEqual(["step:a", "step:c"]);
+  });
+
+  test("mixed filter — applies to positives but negation veto wins", async () => {
+    const fired: string[] = [];
+    const flow = (new FilterFlow<any>() as any)
+      .then(async () => {}, { label: "human:approve" })
+      .then(async () => {}, { label: "llm:generate" })
+      .then(async () => {}, { label: "llm:embed" })
+      .then(async () => {}, { label: "db:save" })
+      .withBefore(["!human:*", "llm:*"], (meta: any) => {
+        fired.push(meta.label!);
+      });
+
+    await flow.run({});
+    // llm:* matches, human:* is vetoed, db:save is not in positives
+    expect(fired).toEqual(["llm:generate", "llm:embed"]);
+  });
+
+  test("negation veto beats a matching positive on the same entry", async () => {
+    const fired: string[] = [];
+    const flow = (new FilterFlow<any>() as any)
+      .then(async () => {}, { label: "llm:generate" })
+      .then(async () => {}, { label: "llm:embed" })
+      .withBefore(["!llm:generate", "llm:*"], (meta: any) => {
+        fired.push(meta.label!);
+      });
+
+    await flow.run({});
+    // llm:generate is negated even though llm:* would match it
+    expect(fired).toEqual(["llm:embed"]);
+  });
+
+  test("negation-only filter — unlabelled steps are not vetoed (no label to match negation)", async () => {
+    const fired: number[] = [];
+    const flow = (new FilterFlow<any>() as any)
+      .then(async () => {}) // unlabelled — negation can't match
+      .then(async () => {}, { label: "human:review" }) // vetoed
+      .then(async () => {}) // unlabelled — not vetoed
+      .withBefore(["!human:*"], (meta: any) => {
+        fired.push(meta.index);
+      });
+
+    await flow.run({});
+    expect(fired).toEqual([0, 2]);
+  });
+
   test("dispose removes filtered hooks", async () => {
     const fired: string[] = [];
     const flow = (new FilterFlow<any>() as any)
       .then(async () => {}, { label: "step:x" })
       .withAllHooks(
-        { beforeStep: (meta: any) => { fired.push(meta.label!); } },
+        {
+          beforeStep: (meta: any) => {
+            fired.push(meta.label!);
+          },
+        },
         ["step:x"],
       );
 

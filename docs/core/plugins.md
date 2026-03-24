@@ -102,7 +102,7 @@ type StepFilter = string[] | ((meta: StepMeta) => boolean);
 
 ### String array — label matching with glob wildcards
 
-Pass an array of step labels. The `*` character is a glob wildcard: `"llm:*"` matches `"llm:summarise"`, `"llm:embed"`, etc. Steps that have no label are **never matched** by a string filter.
+Pass an array of step labels. The `*` character is a glob wildcard: `"llm:*"` matches `"llm:summarise"`, `"llm:embed"`, etc. Steps that have no label are **never matched** by a positive string filter.
 
 ```typescript
 (this as any)._setHooks(
@@ -114,6 +114,26 @@ Pass an array of step labels. The `*` character is a glob wildcard: `"llm:*"` ma
   ["llm:*", "embed:*"], // only fires for steps whose label matches
 );
 ```
+
+### Negation — exclude steps with `!`
+
+Prefix any pattern with `!` to exclude matching steps. **Negation veto always wins** over a positive match in the same array.
+
+```typescript
+// Negation-only — apply everywhere except human-in-loop steps
+(this as any)._setHooks({ wrapStep: rateLimiter }, ["!human:*"]);
+
+// Mixed — apply to llm steps but never human steps
+(this as any)._setHooks({ wrapStep: rateLimiter }, ["!human:*", "llm:*"]);
+
+// Negation veto beats a matching wildcard in the same array
+(this as any)._setHooks(
+  { beforeStep: log },
+  ["!llm:generate", "llm:*"], // fires on all llm:* except llm:generate
+);
+```
+
+**Unlabelled steps and negation:** negation patterns require a label to match against. An unlabelled step cannot be vetoed, so it is included by a negation-only filter (but still excluded by a positive-pattern filter).
 
 ### Predicate — runtime condition or multi-criteria logic
 

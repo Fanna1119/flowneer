@@ -107,6 +107,11 @@ export interface StepMeta {
  *   Entries are exact matches unless they contain `*`, which acts as a
  *   wildcard matching any substring (glob-style).
  *   e.g. `["llm:*"]` matches `"llm:summarise"`, `"llm:embed"`, etc.
+ * - **Negation** — prefix an entry with `!` to exclude matching steps.
+ *   Negation veto always wins over a positive match in the same array.
+ *   A negation-only array matches all labelled steps that are not excluded.
+ *   e.g. `["!human:*"]` fires on every step _except_ `human:*` steps.
+ *   e.g. `["!human:*", "llm:*"]` fires on `llm:*` steps only, never `human:*`.
  * - **Predicate** — full control; return `true` to match.
  *
  * Unmatched `wrapStep`/`wrapParallelFn` hooks still call `next()` automatically
@@ -118,6 +123,12 @@ export interface StepMeta {
  *
  * // Wildcard — any step whose label starts with "llm:"
  * flow.withRateLimit({ intervalMs: 1000 }, ["llm:*"]);
+ *
+ * // Negation-only — apply everywhere except human-in-loop steps
+ * flow.withRateLimit({ intervalMs: 1000 }, ["!human:*"]);
+ *
+ * // Mixed — apply to llm steps, but never human steps
+ * flow.withRateLimit({ intervalMs: 1000 }, ["!human:*", "llm:*"]);
  *
  * // Custom predicate
  * flow.addHooks({ beforeStep: log }, (meta) => meta.type === "fn");
