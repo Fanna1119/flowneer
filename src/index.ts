@@ -32,5 +32,6 @@ export type {
   StepFilter,
   FlowHooks,
   FlowneerPlugin,
+  PluginContext,
   ResolvedHooks,
 } from "./types";

@@ -2,7 +2,7 @@
 // withTools — reusable tool-calling infrastructure extracted from clawneer
 // ---------------------------------------------------------------------------
 
-import type { FlowBuilder, FlowneerPlugin } from "../../Flowneer";
+import type { FlowneerPlugin, PluginContext } from "../../Flowneer";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public types
@@ -204,9 +204,9 @@ declare module "../../Flowneer" {
 }
 
 export const withTools: FlowneerPlugin = {
-  withTools(this: FlowBuilder<any, any>, tools: Tool[]) {
+  withTools(this: PluginContext, tools: Tool[]) {
     const registry = new ToolRegistry(tools);
-    (this as any)._setHooks({
+    this._setHooks({
       beforeFlow: (shared: any) => {
         shared.__tools = registry;
       },

@@ -1,6 +1,6 @@
 import type {
-  FlowBuilder,
   FlowneerPlugin,
+  PluginContext,
   StepFilter,
   StepMeta,
 } from "../../Flowneer";
@@ -17,9 +17,9 @@ declare module "../../Flowneer" {
 }
 
 export const withTiming: FlowneerPlugin = {
-  withTiming(this: FlowBuilder<any, any>, filter?: StepFilter) {
+  withTiming(this: PluginContext, filter?: StepFilter) {
     const starts = new Map<number, number>();
-    (this as any)._setHooks(
+    this._setHooks(
       {
         beforeStep: (meta: StepMeta) => {
           starts.set(meta.index, Date.now());

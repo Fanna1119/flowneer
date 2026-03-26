@@ -2,7 +2,7 @@
 // Telemetry plugin wrapper — turns TelemetryDaemon into a FlowneerPlugin
 // ---------------------------------------------------------------------------
 
-import type { FlowBuilder, FlowneerPlugin } from "../../Flowneer";
+import type { FlowneerPlugin, PluginContext } from "../../Flowneer";
 import { TelemetryDaemon } from "./telemetry";
 import type { TelemetryOptions } from "./telemetry";
 
@@ -36,11 +36,11 @@ declare module "../../Flowneer" {
 
 export const withTelemetry: FlowneerPlugin = {
   withTelemetry(
-    this: FlowBuilder<any, any>,
+    this: PluginContext,
     options?: TelemetryOptions & { daemon?: TelemetryDaemon },
   ) {
     const daemon = options?.daemon ?? new TelemetryDaemon(options);
-    (this as any)._setHooks(daemon.hooks());
+    this._setHooks(daemon.hooks());
     return this;
   },
 };

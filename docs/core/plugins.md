@@ -7,10 +7,10 @@ Plugins extend `FlowBuilder` with new methods by registering **lifecycle hooks**
 A plugin is an object whose keys become methods on `FlowBuilder.prototype`:
 
 ```typescript
-import type { FlowneerPlugin } from "flowneer";
+import type { FlowneerPlugin, PluginContext } from "flowneer";
 
 export const myPlugin: FlowneerPlugin = {
-  myMethod(this: FlowBuilder<any, any>, arg: string) {
+  myMethod(this: PluginContext, arg: string) {
     this._setHooks({
       beforeStep: (meta, shared) => {
         console.log(`[${arg}] step ${meta.index} starting`);
@@ -121,13 +121,13 @@ Prefix any pattern with `!` to exclude matching steps. **Negation veto always wi
 
 ```typescript
 // Negation-only — apply everywhere except human-in-loop steps
-(this as any)._setHooks({ wrapStep: rateLimiter }, ["!human:*"]);
+this._setHooks({ wrapStep: rateLimiter }, ["!human:*"]);
 
 // Mixed — apply to llm steps but never human steps
-(this as any)._setHooks({ wrapStep: rateLimiter }, ["!human:*", "llm:*"]);
+this._setHooks({ wrapStep: rateLimiter }, ["!human:*", "llm:*"]);
 
 // Negation veto beats a matching wildcard in the same array
-(this as any)._setHooks(
+this._setHooks(
   { beforeStep: log },
   ["!llm:generate", "llm:*"], // fires on all llm:* except llm:generate
 );
@@ -140,7 +140,7 @@ Prefix any pattern with `!` to exclude matching steps. **Negation veto always wi
 Pass a function that receives `StepMeta` and returns `true` to match:
 
 ```typescript
-(this as any)._setHooks(
+this._setHooks(
   { wrapStep: rateLimitedWrap },
   (meta) => meta.label?.startsWith("llm:") ?? false,
 );
@@ -171,7 +171,7 @@ dispose(); // removes the hooks
 
 ```typescript
 import { FlowBuilder } from "flowneer";
-import type { FlowneerPlugin, StepMeta } from "flowneer";
+import type { FlowneerPlugin, PluginContext, StepMeta } from "flowneer";
 
 declare module "flowneer" {
   interface FlowBuilder<S, P> {
@@ -180,8 +180,8 @@ declare module "flowneer" {
 }
 
 export const withRetryLog: FlowneerPlugin = {
-  withRetryLog(this: FlowBuilder<any, any>, prefix = "[retry]") {
-    (this as any)._setHooks({
+  withRetryLog(this: PluginContext, prefix = "[retry]") {
+    this._setHooks({
       onError: (meta: StepMeta, err: unknown) => {
         console.warn(
           `${prefix} step ${meta.index} (${meta.type}) failed:`,

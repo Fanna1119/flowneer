@@ -12,7 +12,7 @@
 // Steps without a label prefix still fire onChainStart / onChainEnd.
 // ---------------------------------------------------------------------------
 
-import type { FlowBuilder, FlowneerPlugin, StepMeta } from "../../Flowneer";
+import type { FlowneerPlugin, PluginContext, StepMeta } from "../../Flowneer";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -88,8 +88,8 @@ declare module "../../Flowneer" {
 }
 
 export const withCallbacks: FlowneerPlugin = {
-  withCallbacks(this: FlowBuilder<any, any>, handlers: CallbackHandlers) {
-    (this as any)._setHooks({
+  withCallbacks(this: PluginContext, handlers: CallbackHandlers) {
+    this._setHooks({
       beforeStep: async (meta: StepMeta, shared: any, params: any) => {
         const prefix = getPrefix(meta);
         switch (prefix) {

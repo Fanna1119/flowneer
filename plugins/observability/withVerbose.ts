@@ -1,6 +1,6 @@
 import type {
-  FlowBuilder,
   FlowneerPlugin,
+  PluginContext,
   StepFilter,
   StepMeta,
 } from "../../Flowneer";
@@ -13,8 +13,8 @@ declare module "../../Flowneer" {
 }
 
 export const withVerbose: FlowneerPlugin = {
-  withVerbose(this: FlowBuilder<any, any>, filter?: StepFilter) {
-    (this as any)._setHooks(
+  withVerbose(this: PluginContext, filter?: StepFilter) {
+    this._setHooks(
       {
         afterStep: (meta: StepMeta, shared: any) => {
           console.log(

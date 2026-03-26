@@ -1,6 +1,6 @@
 import type {
-  FlowBuilder,
   FlowneerPlugin,
+  PluginContext,
   StepFilter,
   StepMeta,
 } from "../../Flowneer";
@@ -169,7 +169,7 @@ function diffObjects<S extends Record<string, any>>(
 // ---------------------------------------------------------------------------
 
 export const withCheckpoint: FlowneerPlugin = {
-  withCheckpoint(this: FlowBuilder<any, any>, options: CheckpointOptions) {
+  withCheckpoint(this: PluginContext, options: CheckpointOptions) {
     const {
       save,
       on = ["step:after", "error"],
@@ -284,7 +284,7 @@ export const withCheckpoint: FlowneerPlugin = {
     }
 
     if (Object.keys(stepHooks).length > 0) {
-      (this as any)._setHooks(stepHooks, filter);
+      this._setHooks(stepHooks, filter);
     }
 
     // -------------------------------------------------------------------------
@@ -315,7 +315,7 @@ export const withCheckpoint: FlowneerPlugin = {
     }
 
     if (Object.keys(flowHooks).length > 0) {
-      (this as any)._setHooks(flowHooks);
+      this._setHooks(flowHooks);
     }
 
     return this;
@@ -328,7 +328,7 @@ export const withCheckpoint: FlowneerPlugin = {
 
 export const resumeFrom: FlowneerPlugin = {
   resumeFrom(
-    this: FlowBuilder<any, any>,
+    this: PluginContext,
     version: string,
     store: {
       resolve: (
@@ -341,7 +341,7 @@ export const resumeFrom: FlowneerPlugin = {
     let resolvedIndex: number | null = null;
     let resolved = false;
 
-    (this as any)._setHooks({
+    this._setHooks({
       wrapStep: async (
         meta: StepMeta,
         next: () => Promise<void>,

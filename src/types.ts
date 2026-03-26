@@ -142,6 +142,7 @@ export interface FlowHooks<
 > {
   /** Fires once before the first step runs. */
   beforeFlow?: (shared: S, params: P) => void | Promise<void>;
+  /** Fires before each step body executes. Respects `StepFilter` when registered via `_setHooks`. */
   beforeStep?: (meta: StepMeta, shared: S, params: P) => void | Promise<void>;
   /**
    * Wraps step execution — call `next()` to invoke the step body.
@@ -154,6 +155,7 @@ export interface FlowHooks<
     shared: S,
     params: P,
   ) => Promise<void>;
+  /** Fires after each step body completes successfully. Respects `StepFilter` when registered via `_setHooks`. */
   afterStep?: (meta: StepMeta, shared: S, params: P) => void | Promise<void>;
   /**
    * Wraps individual functions within a `.parallel()` step.
@@ -166,12 +168,19 @@ export interface FlowHooks<
     shared: S,
     params: P,
   ) => Promise<void>;
+  /**
+   * Fires when a step throws, before the error is re-thrown.
+   * Use for logging or writing error details to `shared` — do not suppress the error here;
+   * use `wrapStep` with a try/catch for recovery instead.
+   * Respects `StepFilter` when registered via `_setHooks`.
+   */
   onError?: (
     meta: StepMeta,
     error: unknown,
     shared: S,
     params: P,
   ) => void | Promise<void>;
+  /** Fires once after the last step completes (or after a flow error). Not affected by `StepFilter`. */
   afterFlow?: (shared: S, params: P) => void | Promise<void>;
   /**
    * Fires after each loop iteration completes. `iteration` is zero-based.
@@ -195,6 +204,18 @@ export interface FlowHooks<
 }
 
 /**
+ * The `this` type inside every plugin method. Extends the public `FlowBuilder`
+ * with `_setHooks` so plugins can register lifecycle hooks without casting to
+ * `any`.
+ */
+export type PluginContext = FlowBuilder<any, any> & {
+  _setHooks(
+    hooks: Partial<FlowHooks<any, any>>,
+    filter?: StepFilter,
+  ): () => void;
+};
+
+/**
  * A plugin is an object whose keys become methods on a `FlowBuilder.extend()` subclass prototype.
  * Each method receives the builder as `this` and should return `this` for chaining.
  *
@@ -207,7 +228,7 @@ export interface FlowHooks<
  */
 export type FlowneerPlugin = Record<
   string,
-  (this: FlowBuilder<any, any>, ...args: any[]) => any
+  (this: PluginContext, ...args: any[]) => any
 >;
 
 export type ResolvedHooks<S, P extends Record<string, unknown>> = {

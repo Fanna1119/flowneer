@@ -25,6 +25,7 @@ export type {
   StepFilter,
   FlowHooks,
   FlowneerPlugin,
+  PluginContext,
   FnStep,
   BranchStep,
   LoopStep,

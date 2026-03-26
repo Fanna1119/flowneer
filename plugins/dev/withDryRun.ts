@@ -1,4 +1,4 @@
-import type { FlowBuilder, FlowneerPlugin, StepMeta } from "../../Flowneer";
+import type { FlowneerPlugin, PluginContext, StepMeta } from "../../Flowneer";
 
 declare module "../../Flowneer" {
   interface FlowBuilder<S, P> {
@@ -11,8 +11,8 @@ declare module "../../Flowneer" {
 }
 
 export const withDryRun: FlowneerPlugin = {
-  withDryRun(this: FlowBuilder<any, any>) {
-    (this as any)._setHooks({
+  withDryRun(this: PluginContext) {
+    this._setHooks({
       wrapStep: async (_meta: StepMeta, _next: () => Promise<void>) => {
         /* no-op — step body is intentionally skipped */
       },

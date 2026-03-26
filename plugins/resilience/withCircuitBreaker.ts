@@ -1,4 +1,4 @@
-import type { FlowBuilder, FlowneerPlugin } from "../../Flowneer";
+import type { FlowneerPlugin, PluginContext } from "../../Flowneer";
 
 export interface CircuitBreakerOptions {
   /** Number of consecutive failures that open the circuit. Default: 3 */
@@ -22,15 +22,12 @@ declare module "../../Flowneer" {
 }
 
 export const withCircuitBreaker: FlowneerPlugin = {
-  withCircuitBreaker(
-    this: FlowBuilder<any, any>,
-    opts: CircuitBreakerOptions = {},
-  ) {
+  withCircuitBreaker(this: PluginContext, opts: CircuitBreakerOptions = {}) {
     const { maxFailures = 3, resetMs = 30_000 } = opts;
     let consecutiveFailures = 0;
     let openedAt: number | null = null;
 
-    (this as any)._setHooks({
+    this._setHooks({
       beforeStep: () => {
         if (openedAt !== null) {
           if (Date.now() - openedAt >= resetMs) {

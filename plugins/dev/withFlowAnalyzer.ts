@@ -13,7 +13,12 @@
 //
 // ---------------------------------------------------------------------------
 
-import type { FlowBuilder, FlowneerPlugin, StepMeta } from "../../Flowneer";
+import type {
+  FlowBuilder,
+  FlowneerPlugin,
+  PluginContext,
+  StepMeta,
+} from "../../Flowneer";
 import type { Step } from "../../src/steps";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -244,11 +249,11 @@ export const withFlowAnalyzer: FlowneerPlugin = {
     return { nodes, anchors, hasDynamicGotos };
   },
 
-  withTrace(this: FlowBuilder<any, any>): TraceHandle {
+  withTrace(this: PluginContext): TraceHandle {
     const events: TraceEvent[] = [];
     const starts = new Map<number, number>();
 
-    const dispose = (this as any)._setHooks({
+    const dispose = this._setHooks({
       beforeStep: (meta: StepMeta) => {
         starts.set(meta.index, Date.now());
       },

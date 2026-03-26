@@ -1,6 +1,6 @@
 import type {
-  FlowBuilder,
   FlowneerPlugin,
+  PluginContext,
   StepFilter,
   StepMeta,
 } from "../../Flowneer";
@@ -24,8 +24,8 @@ declare module "../../Flowneer" {
 }
 
 export const withHistory: FlowneerPlugin = {
-  withHistory(this: FlowBuilder<any, any>, filter?: StepFilter) {
-    (this as any)._setHooks(
+  withHistory(this: PluginContext, filter?: StepFilter) {
+    this._setHooks(
       {
         afterStep: (meta: StepMeta, shared: any) => {
           if (!Array.isArray(shared.__history)) shared.__history = [];

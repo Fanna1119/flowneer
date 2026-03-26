@@ -1,7 +1,7 @@
 import type {
-  FlowBuilder,
   FlowneerPlugin,
   NodeFn,
+  PluginContext,
   StepFilter,
   StepMeta,
 } from "../../Flowneer";
@@ -27,8 +27,8 @@ declare module "../../Flowneer" {
 }
 
 export const withFallback: FlowneerPlugin = {
-  withFallback(this: FlowBuilder<any, any>, fn: NodeFn, filter?: StepFilter) {
-    (this as any)._setHooks(
+  withFallback(this: PluginContext, fn: NodeFn, filter?: StepFilter) {
+    this._setHooks(
       {
         wrapStep: async (
           meta: StepMeta,

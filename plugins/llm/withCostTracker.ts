@@ -1,6 +1,6 @@
 import type {
-  FlowBuilder,
   FlowneerPlugin,
+  PluginContext,
   StepFilter,
   StepMeta,
 } from "../../Flowneer";
@@ -26,8 +26,8 @@ declare module "../../Flowneer" {
 }
 
 export const withCostTracker: FlowneerPlugin = {
-  withCostTracker(this: FlowBuilder<any, any>, filter?: StepFilter) {
-    (this as any)._setHooks(
+  withCostTracker(this: PluginContext, filter?: StepFilter) {
+    this._setHooks(
       {
         afterStep: (_meta: StepMeta, shared: any) => {
           const stepCost: number = shared.__stepCost ?? 0;

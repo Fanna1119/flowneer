@@ -2,7 +2,7 @@
 // withMemory — attach a Memory instance to shared state
 // ---------------------------------------------------------------------------
 
-import type { FlowBuilder, FlowneerPlugin } from "../../Flowneer";
+import type { FlowneerPlugin, PluginContext } from "../../Flowneer";
 import type { Memory } from "./types";
 
 declare module "../../Flowneer" {
@@ -34,8 +34,8 @@ declare module "../../Flowneer" {
 }
 
 export const withMemory: FlowneerPlugin = {
-  withMemory(this: FlowBuilder<any, any>, memory: Memory) {
-    (this as any)._setHooks({
+  withMemory(this: PluginContext, memory: Memory) {
+    this._setHooks({
       beforeFlow: (shared: any) => {
         shared.__memory = memory;
       },

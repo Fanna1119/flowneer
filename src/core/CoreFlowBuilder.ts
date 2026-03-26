@@ -198,6 +198,28 @@ export class CoreFlowBuilder<
   }
 
   /**
+   * Register lifecycle hooks on this flow instance at runtime.
+   *
+   * Unlike plugin methods (which use `_setHooks` internally), `addHooks` is
+   * intended for consumers — app code, tests, or request-scoped instrumentation
+   * that needs to observe or modify a specific flow instance without defining a
+   * plugin.
+   *
+   * Returns a `dispose` function that removes the registered hooks when called.
+   *
+   * @example
+   * const dispose = flow.addHooks(
+   *   { beforeStep: (meta) => console.log("->", meta.label) },
+   *   ["llm:*"],
+   * );
+   * await flow.run(shared);
+   * dispose(); // removes the hooks
+   */
+  addHooks(hooks: Partial<FlowHooks<S, P>>, filter?: StepFilter): () => void {
+    return this._setHooks(hooks, filter);
+  }
+
+  /**
    * Register lifecycle hooks (called by plugin methods, not by consumers).
    * Returns a dispose function that removes these hooks when called.
    */
