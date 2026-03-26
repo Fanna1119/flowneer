@@ -142,6 +142,7 @@ export interface FlowHooks<
 > {
   /** Fires once before the first step runs. */
   beforeFlow?: (shared: S, params: P) => void | Promise<void>;
+  /** Fires before each step body executes. Respects `StepFilter` when registered via `_setHooks`. */
   beforeStep?: (meta: StepMeta, shared: S, params: P) => void | Promise<void>;
   /**
    * Wraps step execution — call `next()` to invoke the step body.
@@ -154,6 +155,7 @@ export interface FlowHooks<
     shared: S,
     params: P,
   ) => Promise<void>;
+  /** Fires after each step body completes successfully. Respects `StepFilter` when registered via `_setHooks`. */
   afterStep?: (meta: StepMeta, shared: S, params: P) => void | Promise<void>;
   /**
    * Wraps individual functions within a `.parallel()` step.
@@ -166,12 +168,19 @@ export interface FlowHooks<
     shared: S,
     params: P,
   ) => Promise<void>;
+  /**
+   * Fires when a step throws, before the error is re-thrown.
+   * Use for logging or writing error details to `shared` — do not suppress the error here;
+   * use `wrapStep` with a try/catch for recovery instead.
+   * Respects `StepFilter` when registered via `_setHooks`.
+   */
   onError?: (
     meta: StepMeta,
     error: unknown,
     shared: S,
     params: P,
   ) => void | Promise<void>;
+  /** Fires once after the last step completes (or after a flow error). Not affected by `StepFilter`. */
   afterFlow?: (shared: S, params: P) => void | Promise<void>;
   /**
    * Fires after each loop iteration completes. `iteration` is zero-based.
