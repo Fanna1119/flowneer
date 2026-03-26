@@ -195,6 +195,18 @@ export interface FlowHooks<
 }
 
 /**
+ * The `this` type inside every plugin method. Extends the public `FlowBuilder`
+ * with `_setHooks` so plugins can register lifecycle hooks without casting to
+ * `any`.
+ */
+export type PluginContext = FlowBuilder<any, any> & {
+  _setHooks(
+    hooks: Partial<FlowHooks<any, any>>,
+    filter?: StepFilter,
+  ): () => void;
+};
+
+/**
  * A plugin is an object whose keys become methods on a `FlowBuilder.extend()` subclass prototype.
  * Each method receives the builder as `this` and should return `this` for chaining.
  *
@@ -207,7 +219,7 @@ export interface FlowHooks<
  */
 export type FlowneerPlugin = Record<
   string,
-  (this: FlowBuilder<any, any>, ...args: any[]) => any
+  (this: PluginContext, ...args: any[]) => any
 >;
 
 export type ResolvedHooks<S, P extends Record<string, unknown>> = {

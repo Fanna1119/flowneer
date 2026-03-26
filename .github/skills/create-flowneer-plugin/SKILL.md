@@ -23,8 +23,8 @@ Plugins live in `plugins/<category>/withXxx.ts` and are re-exported from `plugin
 ```typescript
 // plugins/myCategory/withMyPlugin.ts
 import type {
-  FlowBuilder,
   FlowneerPlugin,
+  PluginContext,
   StepFilter,
   StepMeta,
 } from "flowneer";
@@ -50,11 +50,11 @@ export interface MyPluginOptions {
 // (3) Implement the plugin object
 export const withMyPlugin: FlowneerPlugin = {
   withMyPlugin(
-    this: FlowBuilder<any, any>,
+    this: PluginContext,
     opts: MyPluginOptions = {},
     filter?: StepFilter,
   ) {
-    (this as any)._setHooks(
+    this._setHooks(
       {
         beforeStep: (meta: StepMeta, shared: any, params: any) => {
           // runs before each matched step
@@ -74,7 +74,7 @@ export const withMyPlugin: FlowneerPlugin = {
 
 ## Step 2 — Choose lifecycle hooks
 
-Register hooks via `(this as any)._setHooks(hooks, filter?)`.
+Register hooks via `this._setHooks(hooks, filter?)`. Import `PluginContext` from `flowneer` and use it as the explicit `this` parameter — or omit it entirely since `FlowneerPlugin` already types `this` as `PluginContext`.
 
 | Hook              | Signature                                                | Fires                                         |
 | ----------------- | -------------------------------------------------------- | --------------------------------------------- |
@@ -107,10 +107,10 @@ Multiple `wrapStep` registrations compose innermost-first (last registered = out
 
 ```typescript
 // String array — glob wildcard supported
-(this as any)._setHooks({ beforeStep: myHook }, ["llm:*", "embed:*"]);
+this._setHooks({ beforeStep: myHook }, ["llm:*", "embed:*"]);
 
 // Predicate — full runtime control
-(this as any)._setHooks(
+this._setHooks(
   { beforeStep: myHook },
   (meta) => meta.type === "fn" && meta.label?.startsWith("llm:"),
 );
@@ -145,9 +145,9 @@ interface StepMeta {
 
 ```typescript
 export const withTiming: FlowneerPlugin = {
-  withTiming(this: FlowBuilder<any, any>, filter?: StepFilter) {
+  withTiming(this: PluginContext, filter?: StepFilter) {
     const starts = new Map<number, number>();
-    (this as any)._setHooks(
+    this._setHooks(
       {
         beforeStep: (meta: StepMeta) => starts.set(meta.index, Date.now()),
         afterStep: (meta: StepMeta, shared: any) => {
@@ -168,8 +168,8 @@ export const withTiming: FlowneerPlugin = {
 
 ```typescript
 export const withFallback: FlowneerPlugin = {
-  withFallback(this: FlowBuilder<any, any>, fn: NodeFn, filter?: StepFilter) {
-    (this as any)._setHooks(
+  withFallback(this: PluginContext, fn: NodeFn, filter?: StepFilter) {
+    this._setHooks(
       {
         wrapStep: async (meta, next, shared, params) => {
           try {
@@ -195,8 +195,8 @@ export const withFallback: FlowneerPlugin = {
 
 ```typescript
 export const withDryRun: FlowneerPlugin = {
-  withDryRun(this: FlowBuilder<any, any>) {
-    (this as any)._setHooks({
+  withDryRun(this: PluginContext) {
+    this._setHooks({
       wrapStep: async (_meta, _next) => {
         /* no-op — skip step body */
       },
@@ -210,13 +210,9 @@ export const withDryRun: FlowneerPlugin = {
 
 ```typescript
 export const withAuditLog: FlowneerPlugin = {
-  withAuditLog(
-    this: FlowBuilder<any, any>,
-    store: AuditLogStore,
-    filter?: StepFilter,
-  ) {
+  withAuditLog(this: PluginContext, store: AuditLogStore, filter?: StepFilter) {
     const clone = (v: unknown) => JSON.parse(JSON.stringify(v));
-    (this as any)._setHooks(
+    this._setHooks(
       {
         afterStep: async (meta, shared) => {
           await store.append({
@@ -247,14 +243,11 @@ export const withAuditLog: FlowneerPlugin = {
 
 ```typescript
 export const withCircuitBreaker: FlowneerPlugin = {
-  withCircuitBreaker(
-    this: FlowBuilder<any, any>,
-    opts: CircuitBreakerOptions = {},
-  ) {
+  withCircuitBreaker(this: PluginContext, opts: CircuitBreakerOptions = {}) {
     const { maxFailures = 3, resetMs = 30_000 } = opts;
     let consecutiveFailures = 0;
     let openedAt: number | null = null;
-    (this as any)._setHooks({
+    this._setHooks({
       beforeStep: () => {
         if (openedAt !== null) {
           if (Date.now() - openedAt >= resetMs) {

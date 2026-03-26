@@ -1,4 +1,4 @@
-import type { FlowBuilder, FlowneerPlugin } from "../../Flowneer";
+import type { FlowneerPlugin, PluginContext } from "../../Flowneer";
 
 /** Callback invoked each time a step calls `emit()`. */
 export type StreamSubscriber<T = unknown> = (chunk: T) => void;
@@ -32,8 +32,8 @@ declare module "../../Flowneer" {
  * Use `FlowBuilder.extend([withStream])` to create a subclass before creating any
  */
 export const withStream: FlowneerPlugin = {
-  withStream(this: FlowBuilder<any, any>, subscriber: StreamSubscriber) {
-    (this as any)._setHooks({
+  withStream(this: PluginContext, subscriber: StreamSubscriber) {
+    this._setHooks({
       beforeFlow: (shared: any) => {
         shared.__stream = subscriber;
       },

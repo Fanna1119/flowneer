@@ -1,6 +1,6 @@
 import type {
-  FlowBuilder,
   FlowneerPlugin,
+  PluginContext,
   StepFilter,
   StepMeta,
 } from "../../Flowneer";
@@ -96,10 +96,7 @@ declare module "../../Flowneer" {
 // ---------------------------------------------------------------------------
 
 export const withManualStepping: FlowneerPlugin = {
-  withManualStepping(
-    this: FlowBuilder<any, any>,
-    options: ManualSteppingOptions = {},
-  ) {
+  withManualStepping(this: PluginContext, options: ManualSteppingOptions = {}) {
     const { onPause, filter } = options;
 
     let _status: StepperStatus = "idle";
@@ -148,7 +145,7 @@ export const withManualStepping: FlowneerPlugin = {
     // -------------------------------------------------------------------------
     // Step-scoped hook — gate each matched step behind a continue() call
     // -------------------------------------------------------------------------
-    (this as any)._setHooks(
+    this._setHooks(
       {
         wrapStep: async (
           meta: StepMeta,
@@ -189,7 +186,7 @@ export const withManualStepping: FlowneerPlugin = {
     // -------------------------------------------------------------------------
     // Flow-scoped hook — mark done and release any pending waitUntilPaused()
     // -------------------------------------------------------------------------
-    (this as any)._setHooks({
+    this._setHooks({
       afterFlow: () => {
         _status = "done";
         notifyPause(null);

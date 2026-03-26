@@ -1,6 +1,6 @@
 import type {
-  FlowBuilder,
   FlowneerPlugin,
+  PluginContext,
   StepFilter,
   StepMeta,
 } from "../../Flowneer";
@@ -16,8 +16,8 @@ declare module "../../Flowneer" {
 }
 
 export const withTimeout: FlowneerPlugin = {
-  withTimeout(this: FlowBuilder<any, any>, ms: number, filter?: StepFilter) {
-    (this as any)._setHooks(
+  withTimeout(this: PluginContext, ms: number, filter?: StepFilter) {
+    this._setHooks(
       {
         wrapStep: (meta: StepMeta, next: () => Promise<void>) => {
           let handle: ReturnType<typeof setTimeout>;

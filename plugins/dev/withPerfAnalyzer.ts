@@ -22,8 +22,8 @@
 
 import { performance, PerformanceObserver } from "node:perf_hooks";
 import type {
-  FlowBuilder,
   FlowneerPlugin,
+  PluginContext,
   StepFilter,
   StepMeta,
 } from "../../Flowneer";
@@ -201,7 +201,7 @@ function memUsage(): NodeJS.MemoryUsage {
 
 export const withPerfAnalyzer: FlowneerPlugin = {
   withPerfAnalyzer(
-    this: FlowBuilder<any, any>,
+    this: PluginContext,
     options: PerfAnalyzerOptions = {},
     filter?: StepFilter,
   ) {
@@ -242,7 +242,7 @@ export const withPerfAnalyzer: FlowneerPlugin = {
       }
     >();
 
-    (this as any)._setHooks(
+    this._setHooks(
       {
         wrapStep: async (
           meta: StepMeta,

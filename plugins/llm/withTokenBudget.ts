@@ -1,6 +1,6 @@
 import type {
-  FlowBuilder,
   FlowneerPlugin,
+  PluginContext,
   StepFilter,
   StepMeta,
 } from "../../Flowneer";
@@ -16,12 +16,8 @@ declare module "../../Flowneer" {
 }
 
 export const withTokenBudget: FlowneerPlugin = {
-  withTokenBudget(
-    this: FlowBuilder<any, any>,
-    limit: number,
-    filter?: StepFilter,
-  ) {
-    (this as any)._setHooks(
+  withTokenBudget(this: PluginContext, limit: number, filter?: StepFilter) {
+    this._setHooks(
       {
         beforeStep: (_meta: StepMeta, shared: any) => {
           const used: number = shared.tokensUsed ?? 0;

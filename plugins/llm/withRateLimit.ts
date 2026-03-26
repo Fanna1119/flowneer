@@ -1,4 +1,4 @@
-import type { FlowBuilder, FlowneerPlugin, StepFilter } from "../../Flowneer";
+import type { FlowneerPlugin, PluginContext, StepFilter } from "../../Flowneer";
 
 export interface RateLimitOptions {
   /** Minimum milliseconds between the end of one step and the start of the next. */
@@ -32,15 +32,11 @@ declare module "../../Flowneer" {
 }
 
 export const withRateLimit: FlowneerPlugin = {
-  withRateLimit(
-    this: FlowBuilder<any, any>,
-    opts: RateLimitOptions,
-    filter?: StepFilter,
-  ) {
+  withRateLimit(this: PluginContext, opts: RateLimitOptions, filter?: StepFilter) {
     const { intervalMs } = opts;
     let lastStepEnd = 0;
 
-    (this as any)._setHooks(
+    this._setHooks(
       {
         beforeStep: async () => {
           if (lastStepEnd > 0) {

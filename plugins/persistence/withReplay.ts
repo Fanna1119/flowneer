@@ -1,4 +1,4 @@
-import type { FlowBuilder, FlowneerPlugin, StepMeta } from "../../Flowneer";
+import type { FlowneerPlugin, PluginContext, StepMeta } from "../../Flowneer";
 
 declare module "../../Flowneer" {
   interface FlowBuilder<S, P> {
@@ -13,8 +13,8 @@ declare module "../../Flowneer" {
 }
 
 export const withReplay: FlowneerPlugin = {
-  withReplay(this: FlowBuilder<any, any>, fromStep: number) {
-    (this as any)._setHooks({
+  withReplay(this: PluginContext, fromStep: number) {
+    this._setHooks({
       wrapStep: async (meta: StepMeta, next: () => Promise<void>) => {
         if (meta.index < fromStep) return;
         await next();

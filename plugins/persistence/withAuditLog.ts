@@ -1,6 +1,6 @@
 import type {
-  FlowBuilder,
   FlowneerPlugin,
+  PluginContext,
   StepFilter,
   StepMeta,
 } from "../../Flowneer";
@@ -30,13 +30,9 @@ declare module "../../Flowneer" {
 }
 
 export const withAuditLog: FlowneerPlugin = {
-  withAuditLog(
-    this: FlowBuilder<any, any>,
-    store: AuditLogStore,
-    filter?: StepFilter,
-  ) {
+  withAuditLog(this: PluginContext, store: AuditLogStore, filter?: StepFilter) {
     const clone = (v: unknown) => JSON.parse(JSON.stringify(v));
-    (this as any)._setHooks(
+    this._setHooks(
       {
         afterStep: async (meta: StepMeta, shared: unknown) => {
           await store.append({

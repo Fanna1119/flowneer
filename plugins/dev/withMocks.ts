@@ -1,7 +1,7 @@
 import type {
-  FlowBuilder,
   FlowneerPlugin,
   NodeFn,
+  PluginContext,
   StepMeta,
 } from "../../Flowneer";
 
@@ -16,8 +16,8 @@ declare module "../../Flowneer" {
 }
 
 export const withMocks: FlowneerPlugin = {
-  withMocks(this: FlowBuilder<any, any>, map: Record<number, NodeFn>) {
-    (this as any)._setHooks({
+  withMocks(this: PluginContext, map: Record<number, NodeFn>) {
+    this._setHooks({
       wrapStep: async (
         meta: StepMeta,
         next: () => Promise<void>,

@@ -3,8 +3,8 @@
 // ---------------------------------------------------------------------------
 
 import type {
-  FlowBuilder,
   FlowneerPlugin,
+  PluginContext,
   StepFilter,
   StepMeta,
   Validator,
@@ -84,7 +84,7 @@ declare module "../../Flowneer" {
 
 export const withStructuredOutput: FlowneerPlugin = {
   withStructuredOutput(
-    this: FlowBuilder<any, any>,
+    this: PluginContext,
     validator: Validator,
     options?: StructuredOutputOptions,
     filter?: StepFilter,
@@ -94,7 +94,7 @@ export const withStructuredOutput: FlowneerPlugin = {
     const resultKey = options?.resultKey ?? "__structuredOutput";
     const parseFn = options?.parse ?? JSON.parse;
 
-    (this as any)._setHooks(
+    this._setHooks(
       {
         afterStep: (_meta: StepMeta, shared: any) => {
           const raw = shared[outputKey];
